@@ -10,33 +10,12 @@ import { PostCardSkeleton, PostListSkeleton } from "@/components/PostCardSkeleto
 import { PostComposer } from "@/components/PostComposer";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { POST_SELECT } from "@/lib/posts";
+import { useRepliesRealtime } from "@/hooks/useRepliesRealtime";
 
 type PostDetailProps = {
   postId: string;
 };
-
-const POST_SELECT = `
-  id,
-  body,
-  created_at,
-  user_id,
-  media_url,
-  media_type,
-  profiles (
-    username,
-    display_name,
-    avatar_url
-  ),
-  likes (
-    user_id
-  ),
-  reposts (
-    user_id
-  ),
-  post_teams (
-    team_symbol
-  )
-`;
 
 async function fetchPost(
   postId: string,
@@ -99,6 +78,8 @@ export function PostDetail({
     enabled: Boolean(postId),
     staleTime: 15_000,
   });
+
+  useRepliesRealtime(postId);
 
   return (
     <AppShell>

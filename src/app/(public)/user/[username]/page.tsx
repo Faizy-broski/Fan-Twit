@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 
@@ -11,6 +12,7 @@ import { PostListSkeleton } from "@/components/PostCardSkeleton";
 import { ProfileHeaderSkeleton } from "@/components/ProfileHeaderSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { POST_SELECT } from "@/lib/posts";
 
 type Profile = {
   id: string;
@@ -39,30 +41,7 @@ async function fetchProfile(username: string): Promise<Profile | null> {
 async function fetchUserPosts(userId: string): Promise<PostRow[]> {
   const { data, error } = await supabase
     .from("posts")
-    .select(
-      `
-        id,
-        body,
-        created_at,
-        user_id,
-        media_url,
-        media_type,
-        profiles (
-          username,
-          display_name,
-          avatar_url
-        ),
-        likes (
-          user_id
-        ),
-        reposts (
-          user_id
-        ),
-        post_teams (
-          team_symbol
-        )
-      `,
-    )
+    .select(POST_SELECT)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -73,6 +52,36 @@ async function fetchUserPosts(userId: string): Promise<PostRow[]> {
 
   return (data ?? []) as unknown as PostRow[];
 }
+
+type RepostRow = {
+  created_at: string;
+  posts: PostRow;
+};
+
+// Reposts made by this profile — shown on their profile alongside their own
+// posts, X-style, so a repost surfaces on both the original author's profile
+// (it's still their post, unchanged) and the reposting user's profile.
+async function fetchUserReposts(userId: string): Promise<RepostRow[]> {
+  const { data, error } = await supabase
+    .from("reposts")
+    .select(`created_at, posts!inner (${POST_SELECT})`)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as unknown as RepostRow[];
+}
+
+type FeedItem = {
+  key: string;
+  post: PostRow;
+  sortAt: string;
+  repostedBy?: { username: string; display_name: string | null };
+};
 
 export default function UserProfilePage() {
   const params = useParams<{ username: string }>();
@@ -104,6 +113,41 @@ export default function UserProfilePage() {
     enabled: Boolean(profile?.id),
     staleTime: 30_000,
   });
+
+  const {
+    data: reposts = [],
+    isLoading: repostsLoading,
+    isError: repostsFailed,
+  } = useQuery<RepostRow[]>({
+    queryKey: ["user-reposts", profile?.id],
+    queryFn: () => fetchUserReposts(profile!.id),
+    enabled: Boolean(profile?.id),
+    staleTime: 30_000,
+  });
+
+  const feedLoading = postsLoading || repostsLoading;
+  const feedFailed = postsFailed || repostsFailed;
+
+  const feedItems = useMemo<FeedItem[]>(() => {
+    const ownItems: FeedItem[] = posts.map((post) => ({
+      key: `post-${post.id}`,
+      post,
+      sortAt: post.created_at,
+    }));
+
+    const repostItems: FeedItem[] = profile
+      ? reposts.map((row) => ({
+          key: `repost-${row.posts.id}-${row.created_at}`,
+          post: row.posts,
+          sortAt: row.created_at,
+          repostedBy: { username: profile.username, display_name: profile.display_name },
+        }))
+      : [];
+
+    return [...ownItems, ...repostItems].sort(
+      (a, b) => new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime(),
+    );
+  }, [posts, reposts, profile]);
 
   const isOwnProfile = Boolean(currentUser && profile && currentUser.id === profile.id);
   const name = profile?.display_name || profile?.username || username;
@@ -191,27 +235,28 @@ export default function UserProfilePage() {
             )}
           </div>
 
-          {postsLoading && <PostListSkeleton />}
+          {feedLoading && <PostListSkeleton />}
 
-          {postsFailed && (
+          {feedFailed && (
             <div className="p-8 text-center text-sm text-destructive">
               Posts could not be loaded.
             </div>
           )}
 
-          {!postsLoading && !postsFailed && posts.length === 0 && (
+          {!feedLoading && !feedFailed && feedItems.length === 0 && (
             <div className="p-8 text-center text-sm text-muted-foreground">
               No posts yet.
             </div>
           )}
 
-          {!postsLoading &&
-            !postsFailed &&
-            posts.map((post) => (
+          {!feedLoading &&
+            !feedFailed &&
+            feedItems.map((item) => (
               <PostCard
-                key={post.id}
-                post={post}
+                key={item.key}
+                post={item.post}
                 currentUserId={currentUser?.id ?? null}
+                repostedBy={item.repostedBy}
               />
             ))}
         </>

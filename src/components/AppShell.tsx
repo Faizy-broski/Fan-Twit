@@ -7,10 +7,13 @@ import { Search } from "lucide-react";
 import { TeamSearch, TeamSearchModal } from "./TeamSearch";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
-import { LiveScores } from "./LiveScores";
+import { LiveScores, LiveScoresRail } from "./LiveScores";
+import { useRealtimePosts } from "@/hooks/useRealtimePosts";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useRealtimePosts();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -27,6 +30,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
+      <div className="mx-auto max-w-2xl lg:hidden">
+        <LiveScoresRail />
+      </div>
+
       <div className="mx-auto flex max-w-[1265px] justify-center">
         <aside className="sticky top-0 hidden h-screen w-[68px] shrink-0 lg:block xl:w-[275px]">
           <Sidebar onSearch={() => setSearchOpen(true)} />
@@ -36,7 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
 
-        <aside className="sticky top-0 hidden h-screen w-[320px] shrink-0 overflow-y-auto px-4 py-4 xl:block">
+        <aside className="sticky top-0 hidden max-h-screen w-[320px] shrink-0 overflow-y-auto px-4 py-4 xl:block scrollbar-none">
           <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
             <Search className="size-4" />
             <button

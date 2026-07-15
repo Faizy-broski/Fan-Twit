@@ -5,6 +5,7 @@ import { extractTeamSymbols, extractPlayerSymbols } from "@/lib/team-index";
 import { toast } from "sonner";
 import Link from "next/link";
 import { ImagePlus, X } from "lucide-react";
+import { POST_QUERY_KEYS } from "@/lib/post-cache";
 
 export function PostComposer({
   userId,
@@ -160,7 +161,9 @@ export function PostComposer({
       setBody(initial);
       setMediaFile(null);
       setMediaPreview(null);
-      qc.invalidateQueries();
+      qc.invalidateQueries({
+        predicate: (query) => POST_QUERY_KEYS.includes(String(query.queryKey[0])),
+      });
       toast.success(parentPostId ? "Reply posted" : "Posted");
       onPosted?.();
     },

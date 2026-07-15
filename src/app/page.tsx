@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,11 @@ import { CategoryBanner } from "@/components/CategoryBanner";
 import { PostCard, type PostRow } from "@/components/PostCard";
 import { PostComposer } from "@/components/PostComposer";
 import { PostListSkeleton } from "@/components/PostCardSkeleton";
+
+const PAGE_SIZE = 10;
+// Prefetch the next page once the 8th post of the most recent 10-post
+// batch scrolls into view, instead of waiting until the very last post.
+const PREFETCH_OFFSET_FROM_END = 3;
 
 type HomePost = Omit<PostRow, "post_teams"> & {
   post_teams: {
@@ -20,7 +25,10 @@ type HomePost = Omit<PostRow, "post_teams"> & {
   }[];
 };
 
-async function fetchHomePosts(): Promise<HomePost[]> {
+async function fetchHomePosts({ pageParam }: { pageParam: number }): Promise<HomePost[]> {
+  const from = pageParam * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
   const { data, error } = await supabase
     .from("posts")
     .select(
@@ -31,7 +39,10 @@ async function fetchHomePosts(): Promise<HomePost[]> {
         user_id,
         media_url,
         media_type,
-        profiles (
+        like_count,
+        repost_count,
+        reply_count,
+        profiles!posts_user_id_profiles_fkey (
           username,
           display_name,
           avatar_url
@@ -52,7 +63,7 @@ async function fetchHomePosts(): Promise<HomePost[]> {
     )
     .is("parent_post_id", null)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .range(from, to);
 
   if (error) {
     throw new Error(error.message);
@@ -68,15 +79,24 @@ export default function HomePage() {
   const [tab, setTab] = useState<"popular" | "latest">("popular");
 
   const {
-    data: posts = [],
+    data,
     isLoading,
     isError,
     error,
-  } = useQuery<HomePost[]>({
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: ["home-posts"],
     queryFn: fetchHomePosts,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === PAGE_SIZE ? allPages.length : undefined,
     staleTime: 30_000,
   });
+
+  const posts = useMemo(() => data?.pages.flat() ?? [], [data]);
 
   const filteredPosts = useMemo(() => {
     const categoryPosts =
@@ -106,9 +126,42 @@ export default function HomePage() {
     return categoryPosts;
   }, [posts, category, tab]);
 
+  const canLoadMore = Boolean(hasNextPage) && !isFetchingNextPage;
+  const sentinelIndex = Math.max(0, filteredPosts.length - PREFETCH_OFFSET_FROM_END);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  const sentinelRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      observerRef.current?.disconnect();
+
+      if (!node || !canLoadMore) {
+        return;
+      }
+
+      observerRef.current = new IntersectionObserver((entries) => {
+        if (entries[0]?.isIntersecting) {
+          fetchNextPage();
+        }
+      });
+
+      observerRef.current.observe(node);
+    },
+    [canLoadMore, fetchNextPage],
+  );
+
+  // A category filter can hide every post on the pages loaded so far even
+  // though later pages have matches — keep pulling until we find one or
+  // run out of pages, instead of flashing "no posts yet".
+  useEffect(() => {
+    if (posts.length > 0 && filteredPosts.length === 0 && canLoadMore) {
+      fetchNextPage();
+    }
+  }, [posts.length, filteredPosts.length, canLoadMore, fetchNextPage]);
+
   function handlePostCreated() {
     setTab("latest");
     setCategory("All");
+    refetch();
 
     window.scrollTo({
       top: 0,
@@ -140,10 +193,12 @@ export default function HomePage() {
         ))}
       </div>
 
-      <PostComposer
-        userId={user?.id ?? null}
-        onPosted={handlePostCreated}
-      />
+      <div className="hidden lg:block">
+        <PostComposer
+          userId={user?.id ?? null}
+          onPosted={handlePostCreated}
+        />
+      </div>
 
       {isLoading && <PostListSkeleton />}
 
@@ -169,13 +224,14 @@ export default function HomePage() {
 
       {!isLoading &&
         !isError &&
-        filteredPosts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            currentUserId={user?.id ?? null}
-          />
+        filteredPosts.map((post, index) => (
+          <div key={post.id}>
+            <PostCard post={post} currentUserId={user?.id ?? null} />
+            {index === sentinelIndex && <div ref={sentinelRef} aria-hidden />}
+          </div>
         ))}
+
+      {isFetchingNextPage && <PostListSkeleton count={3} />}
     </AppShell>
   );
 }

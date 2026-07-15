@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getGameDetail } from "@/lib/sportsdb.functions";
+import { getGameDetail } from "@/lib/highlightly.functions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

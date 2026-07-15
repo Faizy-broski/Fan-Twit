@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { formatRelative } from "@/lib/team-index";
-import type { ExploreGame } from "@/lib/sportsdb.functions";
+import type { ExploreGame } from "@/lib/highlightly.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type ApiErrorResponse = {
@@ -39,7 +39,7 @@ export function LiveScores() {
   } = useQuery<ExploreGame[]>({
     queryKey: ["explore-live-games"],
     queryFn: fetchLiveScores,
-    refetchInterval: 45_000,
+    refetchInterval: 60_000,
     staleTime: 30_000,
     refetchIntervalInBackground: false,
   });
@@ -115,6 +115,90 @@ export function LiveScores() {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+export function LiveScoresRail() {
+  const {
+    data: games = [],
+    isLoading,
+    isError,
+  } = useQuery<ExploreGame[]>({
+    queryKey: ["explore-live-games"],
+    queryFn: fetchLiveScores,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    refetchIntervalInBackground: false,
+  });
+
+  if (!isLoading && !isError && games.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="border-b border-border bg-muted/20 py-2.5">
+      <div className="flex items-center justify-between px-4 pb-2">
+        <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Live scores
+        </h2>
+        <Link
+          href="/explore"
+          className="text-xs font-semibold text-primary hover:underline"
+        >
+          See all
+        </Link>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none [-webkit-overflow-scrolling:touch]">
+        {isLoading &&
+          Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="w-36 shrink-0 rounded-xl border border-border bg-card px-3 py-2"
+            >
+              <Skeleton className="h-2.5 w-14" />
+              <div className="mt-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-3 w-4" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-3 w-4" />
+                </div>
+              </div>
+            </div>
+          ))}
+
+        {isError && (
+          <p className="px-1 text-xs text-muted-foreground">
+            Live scores could not be loaded.
+          </p>
+        )}
+
+        {!isLoading &&
+          !isError &&
+          games.slice(0, 10).map((game) => (
+            <Link
+              key={game.id}
+              href={`/game/${encodeURIComponent(game.id)}`}
+              className="w-36 shrink-0 rounded-xl border border-border bg-card px-3 py-2 transition-colors hover:bg-muted/40"
+            >
+              <div className="flex items-center justify-between gap-1 text-[9px] font-semibold uppercase tracking-wide">
+                <span className="max-w-[5.5rem] truncate text-muted-foreground">
+                  {game.league || game.sport}
+                </span>
+                <GameStatus game={game} />
+              </div>
+
+              <div className="mt-1.5 space-y-1 text-xs">
+                <TeamRow name={game.home} score={game.homeScore} />
+                <TeamRow name={game.away} score={game.awayScore} />
+              </div>
+            </Link>
+          ))}
+      </div>
     </div>
   );
 }

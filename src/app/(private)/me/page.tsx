@@ -16,7 +16,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 const AVATAR_MAX_SIZE = 2 * 1024 * 1024;
 const COVER_MAX_SIZE = 5 * 1024 * 1024;
-const SIGNED_URL_EXPIRY = 60 * 60 * 24 * 365 * 10;
 
 export default function MePage() {
   const router = useRouter();
@@ -101,6 +100,7 @@ export default function MePage() {
   async function uploadImage({
     file,
     bucket,
+    column,
     maxSize,
     setUploading,
     setUrl,
@@ -108,6 +108,7 @@ export default function MePage() {
   }: {
     file: File;
     bucket: "avatars" | "covers";
+    column: "avatar_url" | "cover_url";
     maxSize: number;
     setUploading: (value: boolean) => void;
     setUrl: (value: string) => void;
@@ -149,18 +150,27 @@ export default function MePage() {
         throw uploadError;
       }
 
-      const { data: signedUrlData, error: signedUrlError } =
-        await supabase.storage
-          .from(bucket)
-          .createSignedUrl(filePath, SIGNED_URL_EXPIRY);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(bucket).getPublicUrl(filePath);
 
-      if (signedUrlError || !signedUrlData?.signedUrl) {
-        throw (
-          signedUrlError ?? new Error("Could not create signed URL.")
-        );
+      // Persist immediately — don't leave the uploaded file's URL sitting
+      // only in local state until the user separately hits "Save profile".
+      const update =
+        column === "avatar_url"
+          ? { avatar_url: publicUrl }
+          : { cover_url: publicUrl };
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update(update)
+        .eq("id", user.id);
+
+      if (updateError) {
+        throw updateError;
       }
 
-      setUrl(signedUrlData.signedUrl);
+      setUrl(publicUrl);
       toast.success(successMessage);
     } catch (error) {
       toast.error(
@@ -184,11 +194,11 @@ export default function MePage() {
     await uploadImage({
       file,
       bucket: "avatars",
+      column: "avatar_url",
       maxSize: AVATAR_MAX_SIZE,
       setUploading: setUploadingAvatar,
       setUrl: setAvatarUrl,
-      successMessage:
-        "Photo uploaded. Save your profile to apply it.",
+      successMessage: "Profile photo updated.",
     });
   }
 
@@ -205,11 +215,11 @@ export default function MePage() {
     await uploadImage({
       file,
       bucket: "covers",
+      column: "cover_url",
       maxSize: COVER_MAX_SIZE,
       setUploading: setUploadingCover,
       setUrl: setCoverUrl,
-      successMessage:
-        "Cover uploaded. Save your profile to apply it.",
+      successMessage: "Cover photo updated.",
     });
   }
 
@@ -322,7 +332,7 @@ export default function MePage() {
         </div>
 
         <div className="flex items-center gap-4 pt-2">
-          <div className="size-20 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
+          <div className="size-20 shrink-0 overflow-hidden rounded-full border border-border bg-gradient-to-br from-primary to-accent-foreground">
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -331,8 +341,8 @@ export default function MePage() {
                 className="size-full object-cover"
               />
             ) : (
-              <div className="flex size-full items-center justify-center text-xs text-muted-foreground">
-                No photo
+              <div className="flex size-full items-center justify-center text-2xl font-bold text-primary-foreground">
+                {(displayName || username || "?").slice(0, 1).toUpperCase()}
               </div>
             )}
           </div>

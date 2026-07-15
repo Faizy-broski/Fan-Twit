@@ -136,7 +136,7 @@ export default function AlertsPage() {
                   body,
                   created_at,
                   user_id,
-                  profiles (
+                  profiles!posts_user_id_profiles_fkey (
                     username
                   )
                 )

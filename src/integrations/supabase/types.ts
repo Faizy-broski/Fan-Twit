@@ -89,6 +89,13 @@ export type Database = {
             referencedRelation: "posts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "likes_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       players: {
@@ -188,27 +195,36 @@ export type Database = {
           body: string
           created_at: string
           id: string
+          like_count: number
           media_type: string | null
           media_url: string | null
           parent_post_id: string | null
+          reply_count: number
+          repost_count: number
           user_id: string
         }
         Insert: {
           body: string
           created_at?: string
           id?: string
+          like_count?: number
           media_type?: string | null
           media_url?: string | null
           parent_post_id?: string | null
+          reply_count?: number
+          repost_count?: number
           user_id: string
         }
         Update: {
           body?: string
           created_at?: string
           id?: string
+          like_count?: number
           media_type?: string | null
           media_url?: string | null
           parent_post_id?: string | null
+          reply_count?: number
+          repost_count?: number
           user_id?: string
         }
         Relationships: [
@@ -283,6 +299,13 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reposts_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

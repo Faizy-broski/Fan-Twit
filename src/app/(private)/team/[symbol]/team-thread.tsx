@@ -10,6 +10,7 @@ import { PostComposer } from "@/components/PostComposer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { POST_SELECT } from "@/lib/posts";
 
 type TeamThreadProps = {
   symbol: string;
@@ -61,26 +62,7 @@ async function fetchTeamPosts(
       `
         post_id,
         posts!inner (
-          id,
-          body,
-          created_at,
-          user_id,
-          media_url,
-          media_type,
-          profiles (
-            username,
-            display_name,
-            avatar_url
-          ),
-          likes (
-            user_id
-          ),
-          reposts (
-            user_id
-          ),
-          post_teams (
-            team_symbol
-          )
+          ${POST_SELECT}
         )
       `,
     )

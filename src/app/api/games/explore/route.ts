@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import {
   getExploreGames,
   type ExploreGame,
-} from "@/lib/sportsdb.functions";
+} from "@/lib/highlightly.functions";
 
 export const dynamic = "force-dynamic";
 

@@ -2,31 +2,26 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
-import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatRelative } from "@/lib/team-index";
-import type { ExploreGame } from "@/lib/sportsdb.functions";
-
-type Team = {
-  symbol: string;
-  name: string;
-  league: string;
-  sport: string;
-  tag_count: number;
-};
-
-type Player = {
-  symbol: string;
-  name: string;
-  team_symbol: string | null;
-  sport: string;
-};
+import type { ExploreGame } from "@/lib/highlightly.functions";
 
 type ApiErrorResponse = {
   message?: string;
+};
+
+type HotTeam = {
+  key: string;
+  name: string;
+  sport: string;
+  league: string;
+  logo: string | null;
+  gameId: string;
+  gameCount: number;
+  live: boolean;
 };
 
 async function fetchExploreGames(): Promise<ExploreGame[]> {
@@ -49,71 +44,59 @@ async function fetchExploreGames(): Promise<ExploreGame[]> {
   return response.json() as Promise<ExploreGame[]>;
 }
 
-async function fetchExploreTeams(): Promise<Team[]> {
-  const { data: tags, error: tagsError } = await supabase
-    .from("post_teams")
-    .select("team_symbol");
+// Hot teams / featured matchups are both derived from the games list we
+// already fetch for "Live & upcoming games" — no extra Highlightly requests.
+function deriveHotTeams(games: ExploreGame[]): HotTeam[] {
+  const byTeam = new Map<string, HotTeam>();
 
-  if (tagsError) {
-    throw new Error(tagsError.message);
-  }
+  for (const game of games) {
+    const sides = [
+      { name: game.home, logo: game.homeLogo },
+      { name: game.away, logo: game.awayLogo },
+    ];
 
-  const counts = new Map<string, number>();
+    for (const side of sides) {
+      if (!side.name || side.name === "TBD") {
+        continue;
+      }
 
-  for (const tag of tags ?? []) {
-    counts.set(
-      tag.team_symbol,
-      (counts.get(tag.team_symbol) ?? 0) + 1,
-    );
-  }
+      const key = `${game.sport}:${side.name}`;
+      const existing = byTeam.get(key);
 
-  const symbols = Array.from(counts.keys());
-
-  if (symbols.length === 0) {
-    const { data, error } = await supabase
-      .from("teams")
-      .select("symbol, name, league, sport")
-      .limit(12);
-
-    if (error) {
-      throw new Error(error.message);
+      if (existing) {
+        existing.gameCount += 1;
+        existing.live = existing.live || game.status === "live";
+        existing.logo = existing.logo ?? side.logo;
+      } else {
+        byTeam.set(key, {
+          key,
+          name: side.name,
+          sport: game.sport,
+          league: game.league,
+          logo: side.logo,
+          gameId: game.id,
+          gameCount: 1,
+          live: game.status === "live",
+        });
+      }
     }
-
-    return (data ?? []).map((team) => ({
-      ...team,
-      tag_count: 0,
-    }));
   }
 
-  const { data, error } = await supabase
-    .from("teams")
-    .select("symbol, name, league, sport")
-    .in("symbol", symbols);
+  return Array.from(byTeam.values())
+    .sort((a, b) => {
+      if (a.live !== b.live) {
+        return a.live ? -1 : 1;
+      }
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return (data ?? [])
-    .map((team) => ({
-      ...team,
-      tag_count: counts.get(team.symbol) ?? 0,
-    }))
-    .sort((a, b) => b.tag_count - a.tag_count)
+      return b.gameCount - a.gameCount;
+    })
     .slice(0, 12);
 }
 
-async function fetchExplorePlayers(): Promise<Player[]> {
-  const { data, error } = await supabase
-    .from("players")
-    .select("symbol, name, team_symbol, sport")
-    .limit(20);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data ?? [];
+function deriveFeaturedMatchups(games: ExploreGame[]): ExploreGame[] {
+  // getExploreGames() already orders live-first, then by kickoff, so the
+  // front of the list is naturally the most "featured" set of matchups.
+  return games.slice(0, 6);
 }
 
 export default function ExplorePage() {
@@ -124,30 +107,13 @@ export default function ExplorePage() {
   } = useQuery<ExploreGame[]>({
     queryKey: ["explore-live-games"],
     queryFn: fetchExploreGames,
-    refetchInterval: 45_000,
+    refetchInterval: 60_000,
     staleTime: 30_000,
     refetchIntervalInBackground: false,
   });
 
-  const {
-    data: teams = [],
-    isLoading: teamsLoading,
-    isError: teamsFailed,
-  } = useQuery<Team[]>({
-    queryKey: ["explore-teams"],
-    queryFn: fetchExploreTeams,
-    staleTime: 60_000,
-  });
-
-  const {
-    data: players = [],
-    isLoading: playersLoading,
-    isError: playersFailed,
-  } = useQuery<Player[]>({
-    queryKey: ["explore-players"],
-    queryFn: fetchExplorePlayers,
-    staleTime: 60_000,
-  });
+  const hotTeams = useMemo(() => deriveHotTeams(games), [games]);
+  const featuredMatchups = useMemo(() => deriveFeaturedMatchups(games), [games]);
 
   return (
     <AppShell>
@@ -235,25 +201,40 @@ export default function ExplorePage() {
       </Section>
 
       <Section title="Hot teams">
-        {teamsLoading && <RowListSkeleton />}
+        {gamesLoading && <RowListSkeleton />}
 
-        {teamsFailed && (
+        {gamesFailed && (
           <StatusMessage className="px-4">
             Teams could not be loaded.
           </StatusMessage>
         )}
 
-        {!teamsLoading && !teamsFailed && (
+        {!gamesLoading && !gamesFailed && hotTeams.length === 0 && (
+          <StatusMessage className="px-4">
+            No teams playing right now.
+          </StatusMessage>
+        )}
+
+        {!gamesLoading && !gamesFailed && hotTeams.length > 0 && (
           <ul className="divide-y divide-border">
-            {teams.map((team) => (
-              <li key={team.symbol}>
+            {hotTeams.map((team) => (
+              <li key={team.key}>
                 <Link
-                  href={`/team/${encodeURIComponent(team.symbol)}`}
+                  href={`/game/${encodeURIComponent(team.gameId)}`}
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
                 >
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-black text-primary">
-                    {team.symbol.slice(0, 3)}
-                  </div>
+                  {team.logo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={team.logo}
+                      alt=""
+                      className="size-9 shrink-0 rounded-full bg-muted object-contain"
+                    />
+                  ) : (
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-black text-primary">
+                      {team.name.slice(0, 3).toUpperCase()}
+                    </div>
+                  )}
 
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">
@@ -261,13 +242,19 @@ export default function ExplorePage() {
                     </p>
 
                     <p className="text-xs text-muted-foreground">
-                      {team.league} · {team.sport}
+                      {team.league || team.sport}
                     </p>
                   </div>
 
-                  <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-                    ${team.symbol}
-                  </span>
+                  {team.live ? (
+                    <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-bold text-destructive">
+                      ● LIVE
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                      {team.gameCount} {team.gameCount === 1 ? "game" : "games"}
+                    </span>
+                  )}
                 </Link>
               </li>
             ))}
@@ -275,42 +262,41 @@ export default function ExplorePage() {
         )}
       </Section>
 
-      <Section title="Top players">
-        {playersLoading && <RowListSkeleton />}
+      <Section title="Featured matchups">
+        {gamesLoading && <RowListSkeleton />}
 
-        {playersFailed && (
+        {gamesFailed && (
           <StatusMessage className="px-4">
-            Players could not be loaded.
+            Matchups could not be loaded.
           </StatusMessage>
         )}
 
-        {!playersLoading && !playersFailed && (
+        {!gamesLoading && !gamesFailed && featuredMatchups.length === 0 && (
+          <StatusMessage className="px-4">
+            No matchups right now.
+          </StatusMessage>
+        )}
+
+        {!gamesLoading && !gamesFailed && featuredMatchups.length > 0 && (
           <ul className="divide-y divide-border">
-            {players.map((player) => (
-              <li
-                key={player.symbol}
-                className="flex items-center gap-3 px-4 py-3"
-              >
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent-foreground text-sm font-bold text-primary-foreground">
-                  {player.name.slice(0, 1).toUpperCase()}
-                </div>
+            {featuredMatchups.map((game) => (
+              <li key={game.id}>
+                <Link
+                  href={`/game/${encodeURIComponent(game.id)}`}
+                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {game.league || game.sport}
+                    </p>
 
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">
-                    {player.name}
-                  </p>
+                    <p className="mt-0.5 truncate text-sm font-semibold">
+                      {game.home} <span className="text-muted-foreground">vs</span> {game.away}
+                    </p>
+                  </div>
 
-                  <p className="text-xs text-muted-foreground">
-                    {player.sport}
-                    {player.team_symbol
-                      ? ` · $${player.team_symbol}`
-                      : ""}
-                  </p>
-                </div>
-
-                <span className="rounded-md bg-accent px-2 py-0.5 text-xs font-bold text-accent-foreground">
-                  @{player.symbol}
-                </span>
+                  <GameStatus game={game} />
+                </Link>
               </li>
             ))}
           </ul>

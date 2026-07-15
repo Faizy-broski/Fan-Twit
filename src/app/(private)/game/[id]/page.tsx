@@ -11,7 +11,8 @@ import { PostListSkeleton } from "@/components/PostCardSkeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import type { GameDetail } from "@/lib/sportsdb.functions";
+import type { GameDetail } from "@/lib/highlightly.functions";
+import { POST_SELECT } from "@/lib/posts";
 
 type GameApiError = {
   message?: string;
@@ -59,30 +60,7 @@ async function fetchGameTwits(game: GameDetail): Promise<PostRow[]> {
 
   const { data, error } = await supabase
     .from("posts")
-    .select(
-      `
-        id,
-        body,
-        created_at,
-        user_id,
-        media_url,
-        media_type,
-        profiles (
-          username,
-          display_name,
-          avatar_url
-        ),
-        likes (
-          user_id
-        ),
-        reposts (
-          user_id
-        ),
-        post_teams (
-          team_symbol
-        )
-      `,
-    )
+    .select(POST_SELECT)
     .or(searchTerms)
     .order("created_at", { ascending: false })
     .limit(30);
@@ -109,7 +87,7 @@ export default function GamePage() {
     queryKey: ["game", id],
     queryFn: () => fetchGameDetail(id),
     enabled: Boolean(id),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
     staleTime: 20_000,
     refetchIntervalInBackground: false,
   });

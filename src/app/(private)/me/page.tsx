@@ -16,6 +16,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 const AVATAR_MAX_SIZE = 2 * 1024 * 1024;
 const COVER_MAX_SIZE = 5 * 1024 * 1024;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+
+// Uploaded photos get a long Supabase Storage URL that isn't meant to be
+// hand-edited — hide it from the "paste a URL" field (the image preview
+// still shows it) so that field only ever reflects a manually typed URL.
+function isSupabaseStorageUrl(url: string): boolean {
+  return Boolean(SUPABASE_URL) && url.startsWith(`${SUPABASE_URL}/storage/v1/object/public/`);
+}
 
 export default function MePage() {
   const router = useRouter();
@@ -398,7 +406,7 @@ export default function MePage() {
         <input
           id="avatar-url"
           type="url"
-          value={avatarUrl}
+          value={isSupabaseStorageUrl(avatarUrl) ? "" : avatarUrl}
           onChange={(event) => setAvatarUrl(event.target.value)}
           placeholder="https://…"
           className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"

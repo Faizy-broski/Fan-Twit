@@ -21,6 +21,7 @@ export type PostRow = {
   body: string;
   created_at: string;
   user_id: string;
+  parent_post_id?: string | null;
   media_url?: string | null;
   media_type?: string | null;
   like_count?: number;
@@ -80,6 +81,7 @@ export function PostCard({
   post,
   currentUserId,
   repostedBy,
+  onOpenComments,
 }: {
   post: PostRow;
   currentUserId: string | null;
@@ -87,6 +89,10 @@ export function PostCard({
    * where a repost appears in both the original author's and the
    * reposting user's post lists. */
   repostedBy?: { username: string; display_name: string | null };
+  /** When rendered as a flat comment row inside CommentsDialog, tapping
+   * "reply" should target that comment's author (Instagram/LinkedIn-style
+   * @mention prefill) instead of opening a nested comments dialog. */
+  onOpenComments?: (post: PostRow) => void;
 }) {
   const qc = useQueryClient();
   const liked = !!currentUserId && post.likes.some((l) => l.user_id === currentUserId);
@@ -96,6 +102,13 @@ export function PostCard({
   const replyCount = post.reply_count ?? 0;
   const author = post.profiles;
   const name = author?.display_name || author?.username || "unknown";
+
+  // A PostCard only ever receives onOpenComments when it's being rendered
+  // as a comment row inside CommentsDialog — used here to render a tighter,
+  // repost/share-less layout so deep nesting doesn't squeeze cards down to
+  // nothing, and so comments can only be liked/replied to, not reposted or
+  // shared like a top-level post.
+  const isComment = Boolean(onOpenComments);
 
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [likesOpen, setLikesOpen] = useState(false);
@@ -231,7 +244,11 @@ export function PostCard({
   };
 
   return (
-    <article className="border-b border-border px-4 py-4 hover:bg-muted/30 transition-colors">
+    <article
+      className={`border-b border-border transition-colors hover:bg-muted/30 ${
+        isComment ? "px-2 py-2" : "px-4 py-4"
+      }`}
+    >
       {repostedBy && (
         <Link
           href={`/user/${encodeURIComponent(repostedBy.username)}`}
@@ -241,10 +258,12 @@ export function PostCard({
           {repostedBy.display_name || repostedBy.username} reposted
         </Link>
       )}
-      <div className="flex gap-3">
+      <div className={isComment ? "flex gap-2" : "flex gap-3"}>
         <Link
           href={`/user/${encodeURIComponent(author?.username || "")}`}
-          className="size-11 shrink-0 rounded-full bg-gradient-to-br from-primary to-accent-foreground flex items-center justify-center text-primary-foreground font-bold overflow-hidden transition-opacity hover:opacity-90"
+          className={`shrink-0 rounded-full bg-gradient-to-br from-primary to-accent-foreground flex items-center justify-center text-primary-foreground font-bold overflow-hidden transition-opacity hover:opacity-90 ${
+            isComment ? "size-8 text-sm" : "size-11"
+          }`}
         >
           {author?.avatar_url ? (
             <img src={author.avatar_url} alt={name} className="size-full object-cover" />
@@ -294,52 +313,73 @@ export function PostCard({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <Link href={`/post/${encodeURIComponent(post.id)}`} className="mt-1.5 block">
-            <p className="whitespace-pre-wrap break-words text-[15px] leading-normal text-foreground">
+          <Link
+            href={`/post/${encodeURIComponent(post.id)}`}
+            className={isComment ? "mt-0.5 block" : "mt-1.5 block"}
+          >
+            <p
+              className={`whitespace-pre-wrap break-words leading-normal text-foreground ${
+                isComment ? "text-sm" : "text-[15px]"
+              }`}
+            >
               {renderBody(post.body)}
             </p>
             {post.media_url && (
               <img
                 src={post.media_url}
                 alt=""
-                className="mt-3 max-h-[32rem] max-w-full rounded-2xl border border-border"
+                className={`max-w-full rounded-2xl border border-border ${
+                  isComment ? "mt-1.5 max-h-56" : "mt-3 max-h-[32rem]"
+                }`}
                 loading="lazy"
               />
             )}
           </Link>
-          <div className="mt-3 flex max-w-sm items-center justify-between text-muted-foreground">
+          <div
+            className={`flex items-center text-muted-foreground ${
+              isComment ? "mt-1 max-w-[140px] justify-between" : "mt-3 max-w-sm justify-between"
+            }`}
+          >
             <button
               type="button"
-              onClick={() => setCommentsOpen(true)}
-              className="group -ml-2 inline-flex items-center gap-1.5 rounded-full py-2 pl-2 pr-3 text-sm transition-colors hover:text-primary"
+              onClick={() => (onOpenComments ? onOpenComments(post) : setCommentsOpen(true))}
+              className={`group inline-flex items-center gap-1.5 rounded-full transition-colors hover:text-primary ${
+                isComment ? "py-1 pl-0 pr-2" : "-ml-2 py-2 pl-2 pr-3"
+              }`}
             >
-              <span className="flex size-8 items-center justify-center rounded-full transition-colors group-hover:bg-primary/10">
-                <MessageCircle className="size-[18px]" />
+              <span
+                className={`flex items-center justify-center rounded-full transition-colors group-hover:bg-primary/10 ${
+                  isComment ? "size-6" : "size-8"
+                }`}
+              >
+                <MessageCircle className={isComment ? "size-4" : "size-[18px]"} />
               </span>
               <span className="text-xs tabular-nums">{replyCount || ""}</span>
             </button>
 
-            <div
-              className={`group inline-flex items-center rounded-full transition-colors hover:text-green-600 ${reposted ? "text-green-600" : ""}`}
-            >
-              <button
-                type="button"
-                onClick={() => toggleRepost.mutate()}
-                disabled={toggleRepost.isPending}
-                className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-green-600/10"
-                aria-label={reposted ? "Undo repost" : "Repost"}
+            {!isComment && (
+              <div
+                className={`group inline-flex items-center rounded-full transition-colors hover:text-green-600 ${reposted ? "text-green-600" : ""}`}
               >
-                <Repeat2 className="size-[18px] transition-transform active:scale-90" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setRepostsOpen(true)}
-                disabled={!repostCount}
-                className="rounded-full py-2 pr-3 text-xs tabular-nums hover:underline disabled:no-underline"
-              >
-                {repostCount || ""}
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => toggleRepost.mutate()}
+                  disabled={toggleRepost.isPending}
+                  className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-green-600/10"
+                  aria-label={reposted ? "Undo repost" : "Repost"}
+                >
+                  <Repeat2 className="size-[18px] transition-transform active:scale-90" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRepostsOpen(true)}
+                  disabled={!repostCount}
+                  className="rounded-full py-2 pr-3 text-xs tabular-nums hover:underline disabled:no-underline"
+                >
+                  {repostCount || ""}
+                </button>
+              </div>
+            )}
 
             <div
               className={`group inline-flex items-center rounded-full transition-colors hover:text-destructive ${liked ? "text-destructive" : ""}`}
@@ -348,43 +388,51 @@ export function PostCard({
                 type="button"
                 onClick={() => toggleLike.mutate()}
                 disabled={toggleLike.isPending}
-                className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-destructive/10"
+                className={`flex items-center justify-center rounded-full transition-colors hover:bg-destructive/10 ${
+                  isComment ? "size-6" : "size-8"
+                }`}
                 aria-label={liked ? "Unlike" : "Like"}
               >
                 <Heart
-                  className={`size-[18px] transition-transform active:scale-90 ${liked ? "fill-current" : ""}`}
+                  className={`transition-transform active:scale-90 ${isComment ? "size-4" : "size-[18px]"} ${liked ? "fill-current" : ""}`}
                 />
               </button>
               <button
                 type="button"
                 onClick={() => setLikesOpen(true)}
                 disabled={!likeCount}
-                className="rounded-full py-2 pr-3 text-xs tabular-nums hover:underline disabled:no-underline"
+                className={`rounded-full text-xs tabular-nums hover:underline disabled:no-underline ${
+                  isComment ? "py-1 pr-2" : "py-2 pr-3"
+                }`}
               >
                 {likeCount || ""}
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShareOpen(true)}
-              className="group inline-flex items-center gap-1.5 rounded-full py-2 pl-2 pr-2 text-sm transition-colors hover:text-primary"
-              aria-label="Share post"
-            >
-              <span className="flex size-8 items-center justify-center rounded-full transition-colors group-hover:bg-primary/10">
-                <Share className="size-[18px]" />
-              </span>
-            </button>
+            {!isComment && (
+              <button
+                type="button"
+                onClick={() => setShareOpen(true)}
+                className="group inline-flex items-center gap-1.5 rounded-full py-2 pl-2 pr-2 text-sm transition-colors hover:text-primary"
+                aria-label="Share post"
+              >
+                <span className="flex size-8 items-center justify-center rounded-full transition-colors group-hover:bg-primary/10">
+                  <Share className="size-[18px]" />
+                </span>
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      <CommentsDialog
-        open={commentsOpen}
-        onClose={() => setCommentsOpen(false)}
-        post={post}
-        currentUserId={currentUserId}
-      />
+      {!onOpenComments && (
+        <CommentsDialog
+          open={commentsOpen}
+          onClose={() => setCommentsOpen(false)}
+          post={post}
+          currentUserId={currentUserId}
+        />
+      )}
 
       <UserListDialog
         open={likesOpen}

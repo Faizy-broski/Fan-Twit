@@ -8,6 +8,7 @@ export const POST_SELECT = `
   body,
   created_at,
   user_id,
+  parent_post_id,
   media_url,
   media_type,
   like_count,

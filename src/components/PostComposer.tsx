@@ -11,6 +11,7 @@ export function PostComposer({
   userId,
   defaultTag,
   defaultPlayer,
+  replyToUsername,
   parentPostId,
   placeholder = "What's happening in sports? Tag teams with $ARS, players with @LBJ…",
   onPosted,
@@ -18,11 +19,21 @@ export function PostComposer({
   userId: string | null;
   defaultTag?: string;
   defaultPlayer?: string;
+  /** Prefills "@username " — used when replying to a specific comment so
+   * the reply reads as directed at them (Instagram/LinkedIn-style), while
+   * still posting flat as a direct reply to the thread's root post. */
+  replyToUsername?: string;
   parentPostId?: string;
   placeholder?: string;
   onPosted?: () => void;
 }) {
-  const initial = defaultTag ? `$${defaultTag} ` : defaultPlayer ? `@${defaultPlayer} ` : "";
+  const initial = defaultTag
+    ? `$${defaultTag} `
+    : defaultPlayer
+      ? `@${defaultPlayer} `
+      : replyToUsername
+        ? `@${replyToUsername} `
+        : "";
   const [body, setBody] = useState(initial);
   const qc = useQueryClient();
   const max = 500;

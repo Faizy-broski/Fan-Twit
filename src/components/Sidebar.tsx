@@ -23,7 +23,12 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const qc = useQueryClient();
   const { user, loading } = useAuth();
   const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
-  const username = user ? fetchedUsername : null;
+  // The DB profiles fetch below is the source of truth, but it's an extra
+  // round-trip that races the render — while logged in and it's still in
+  // flight (or fails), fall back to the username set at signup so the
+  // Profile link never mistakenly points at /auth while signed in.
+  const metadataUsername = (user?.user_metadata as { username?: string } | undefined)?.username;
+  const username = user ? (fetchedUsername ?? metadataUsername ?? null) : null;
 
   useEffect(() => {
     if (!user) return;

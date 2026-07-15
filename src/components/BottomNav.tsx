@@ -9,7 +9,11 @@ export function BottomNav() {
   const path = usePathname();
   const { user } = useAuth();
   const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
-  const username = user ? fetchedUsername : null;
+  // See Sidebar.tsx — fall back to the signup-time username in auth
+  // metadata while the profiles fetch is in flight (or fails), so this
+  // never mistakenly points at /auth while the user is signed in.
+  const metadataUsername = (user?.user_metadata as { username?: string } | undefined)?.username;
+  const username = user ? (fetchedUsername ?? metadataUsername ?? null) : null;
 
   useEffect(() => {
     if (!user) return;

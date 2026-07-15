@@ -190,7 +190,7 @@ export default function UserProfilePage() {
 
           <div className="px-4 pb-4">
             <div className="flex items-end justify-between gap-3">
-              <div className="-mt-10 size-20 shrink-0 overflow-hidden rounded-full border-4 border-background bg-muted">
+              <div className="z-10 -mt-10 size-20 shrink-0 overflow-hidden rounded-full border-4 border-background bg-muted">
                 {profile.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img

@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Sidebar onSearch={() => setSearchOpen(true)} />
         </aside>
 
-        <main className="min-h-screen w-full max-w-2xl border-x border-border pb-20 lg:pb-0">
+        <main className="min-h-screen w-full max-w-2xl border-x border-border pb-28 lg:pb-0">
           {children}
         </main>
 

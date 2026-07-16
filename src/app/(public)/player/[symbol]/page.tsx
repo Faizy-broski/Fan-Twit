@@ -15,8 +15,8 @@ export async function generateMetadata({
   const normalizedSymbol = decodeURIComponent(symbol).toUpperCase();
 
   return {
-    title: `@${normalizedSymbol} — FanTwit player thread`,
-    description: `All FanTwit posts tagging @${normalizedSymbol}.`,
+    title: `@${normalizedSymbol} — FanSport player thread`,
+    description: `All FanSport posts tagging @${normalizedSymbol}.`,
   };
 }
 

@@ -10,6 +10,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { ThemeProvider, useTheme } from "next-themes";
 import { Toaster } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +18,19 @@ import { supabase } from "@/integrations/supabase/client";
 type ProvidersProps = {
   children: ReactNode;
 };
+
+function ThemedToaster() {
+  const { resolvedTheme } = useTheme();
+
+  return (
+    <Toaster
+      richColors
+      position="top-center"
+      closeButton
+      theme={resolvedTheme === "dark" ? "dark" : "light"}
+    />
+  );
+}
 
 export function Providers({ children }: ProvidersProps) {
   const router = useRouter();
@@ -69,14 +83,12 @@ export function Providers({ children }: ProvidersProps) {
   }, [queryClient, router]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <QueryClientProvider client={queryClient}>
+        {children}
 
-      <Toaster
-        richColors
-        position="top-center"
-        closeButton
-      />
-    </QueryClientProvider>
+        <ThemedToaster />
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

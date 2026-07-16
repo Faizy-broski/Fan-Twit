@@ -171,7 +171,7 @@ export default function UserProfilePage() {
 
       {!profileLoading && !profileFailed && !profile && (
         <div className="p-8 text-center text-sm text-muted-foreground">
-          @{username} isn&apos;t on FanTwit.
+          @{username} isn&apos;t on FanSport.
         </div>
       )}
 

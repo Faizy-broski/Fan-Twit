@@ -193,12 +193,12 @@ export default function AuthPage() {
           {mode === "signin" ? (
             <>
               Sign in to{" "}
-              <span className="text-primary">FanTwit</span>
+              <span className="text-primary">FanSport</span>
             </>
           ) : (
             <>
               Create your{" "}
-              <span className="text-primary">FanTwit</span>{" "}
+              <span className="text-primary">FanSport</span>{" "}
               profile
             </>
           )}

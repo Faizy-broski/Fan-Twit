@@ -14,26 +14,26 @@ const geistMono = Geist_Mono({
 });
 export const metadata: Metadata = {
   title: {
-    default: "FanTwit — Social Discussion for Sports Fans",
-    template: "%s | FanTwit",
+    default: "FanSport — Social Discussion for Sports Fans",
+    template: "%s | FanSport",
   },
   description:
-    "FanTwit is the StockTwits of sports. Follow team threads by symbol like $ARS or $LAL, post takes, and chat with fans across every league.",
+    "FanSport is the StockTwits of sports. Follow team threads by symbol like $ARS or $LAL, post takes, and chat with fans across every league.",
   authors: [
     {
-      name: "FanTwit",
+      name: "FanSport",
     },
   ],
   openGraph: {
-    title: "FanTwit — Social Discussion for Sports Fans",
+    title: "FanSport — Social Discussion for Sports Fans",
     description:
       "Follow team threads by symbol like $ARS or $LAL and chat with fans across every league.",
     type: "website",
-    siteName: "FanTwit",
+    siteName: "FanSport",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FanTwit — Social Discussion for Sports Fans",
+    title: "FanSport — Social Discussion for Sports Fans",
     description:
       "Follow team threads by symbol like $ARS or $LAL and chat with fans across every league.",
   },
@@ -45,6 +45,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0f19" },
+  ],
 };
 
 export default function RootLayout({
@@ -56,6 +61,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>

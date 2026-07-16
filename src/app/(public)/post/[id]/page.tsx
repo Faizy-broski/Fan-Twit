@@ -9,8 +9,8 @@ type PostPageProps = {
 };
 
 export const metadata: Metadata = {
-  title: "Post — FanTwit",
-  description: "View a FanTwit post and its replies.",
+  title: "Post — FanSport",
+  description: "View a FanSport post and its replies.",
 };
 
 export default async function PostPage({

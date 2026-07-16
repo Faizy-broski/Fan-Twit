@@ -1,4 +1,4 @@
-// Utilities for the FanTwit team index tags ($SYM tokens in post bodies).
+// Utilities for the FanSport team index tags ($SYM tokens in post bodies).
 
 // Match $SYMBOL tokens. Symbols are 2-5 uppercase alphanumerics.
 export const TEAM_TAG_RE = /\$([A-Z][A-Z0-9]{1,5})\b/g;

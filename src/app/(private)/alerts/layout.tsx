@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Alerts — FanTwit",
+  title: "Alerts — FanSport",
   description:
     "View likes on your posts and mentions of your favorite team.",
 };

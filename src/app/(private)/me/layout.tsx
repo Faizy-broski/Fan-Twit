@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Profile — FanTwit",
+  title: "Profile — FanSport",
   description:
-    "Update your FanTwit profile, avatar, cover image, bio, and favorite team.",
+    "Update your FanSport profile, avatar, cover image, bio, and favorite team.",
 };
 
 export default function MeLayout({

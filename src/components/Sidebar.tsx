@@ -16,6 +16,7 @@ import {
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const path = usePathname();
@@ -72,7 +73,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
           <span className="rounded-md bg-primary px-1.5 py-0.5 text-primary-foreground">
             Fan
           </span>
-          <span className="hidden xl:inline">twit</span>
+          <span className="hidden xl:inline">sport</span>
         </Link>
 
         <nav className="flex flex-col gap-1">
@@ -129,9 +130,13 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
         </Link>
       </div>
 
-      {!loading && (
-        <div className="px-1">
-          {user ? (
+      <div className="px-1">
+        <div className="mb-1 flex items-center justify-center xl:justify-start xl:px-2">
+          <ThemeToggle />
+        </div>
+
+        {!loading && (
+          user ? (
             <button
               onClick={signOut}
               className="flex w-full items-center justify-center gap-3 rounded-full px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground xl:justify-start"
@@ -147,9 +152,9 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
             >
               Sign in
             </Link>
-          )}
-        </div>
-      )}
+          )
+        )}
+      </div>
     </div>
   );
 }

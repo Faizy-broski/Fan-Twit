@@ -7,6 +7,7 @@ import { Search } from "lucide-react";
 import { TeamSearch, TeamSearchModal } from "./TeamSearch";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
+import { ThemeToggle } from "./ThemeToggle";
 import { LiveScores, LiveScoresRail } from "./LiveScores";
 import { useRealtimePosts } from "@/hooks/useRealtimePosts";
 
@@ -22,10 +23,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between gap-3 px-4">
           <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight">
             <span className="rounded-md bg-primary px-1.5 py-0.5 text-primary-foreground">Fan</span>
-            <span>twit</span>
+            <span>sport</span>
           </Link>
           <div className="flex items-center gap-1">
             <TeamSearch />
+            <ThemeToggle />
           </div>
         </div>
       </header>

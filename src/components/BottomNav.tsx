@@ -95,6 +95,7 @@ import {
   Compass,
   Home,
   Plus,
+  ShieldCheck,
   User as UserIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -181,6 +182,7 @@ export function BottomNav({
   const { user } = useAuth();
 
   const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
 
   const metadataUsername = (
     user?.user_metadata as { username?: string } | undefined
@@ -189,28 +191,29 @@ export function BottomNav({
   const username = user
     ? (fetchedUsername ?? metadataUsername ?? null)
     : null;
+  const effectiveRole = user ? role : null;
 
   useEffect(() => {
     if (!user) {
-      setFetchedUsername(null);
       return;
     }
 
     let ignore = false;
 
-    const fetchUsername = async () => {
+    const fetchProfile = async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("username")
+        .select("username, role")
         .eq("id", user.id)
         .maybeSingle();
 
       if (!ignore && !error) {
         setFetchedUsername(data?.username ?? null);
+        setRole(data?.role ?? null);
       }
     };
 
-    void fetchUsername();
+    void fetchProfile();
 
     return () => {
       ignore = true;
@@ -290,6 +293,15 @@ export function BottomNav({
             icon={UserIcon}
             active={isMe}
           />
+
+          {effectiveRole === "admin" && (
+            <NavItem
+              href="/admin"
+              label="Admin"
+              icon={ShieldCheck}
+              active={pathname.startsWith("/admin")}
+            />
+          )}
         </div>
       </div>
     </nav>

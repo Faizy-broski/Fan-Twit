@@ -310,7 +310,7 @@ export default function AdminPage() {
         </p>
       </header>
 
-      <div className="grid grid-cols-3 gap-3 px-4 py-4">
+      <div className="grid grid-cols-3 gap-2 px-4 py-4 sm:gap-3">
         <StatCard label="Users" value={stats?.totalUsers} loading={statsLoading} />
         <StatCard
           label="Suspended"
@@ -322,9 +322,13 @@ export default function AdminPage() {
       </div>
 
       <Tabs defaultValue="users" className="px-4">
-        <TabsList>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="users" className="flex-1 sm:flex-none">
+            Users
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="flex-1 sm:flex-none">
+            Activity
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users">
@@ -355,7 +359,10 @@ export default function AdminPage() {
           {!usersLoading && !usersFailed && users.length > 0 && (
             <ul className="divide-y divide-border rounded-xl border border-border">
               {users.map((profile) => (
-                <li key={profile.id} className="flex items-center gap-3 px-4 py-3">
+                <li
+                  key={profile.id}
+                  className="flex flex-wrap items-center gap-3 px-4 py-3"
+                >
                   {profile.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -369,7 +376,7 @@ export default function AdminPage() {
                     </div>
                   )}
 
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 basis-40">
                     <div className="flex items-center gap-1.5">
                       <Link
                         href={`/user/${encodeURIComponent(profile.username)}`}
@@ -399,7 +406,7 @@ export default function AdminPage() {
                     </p>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:ml-0">
                     <Button
                       type="button"
                       size="sm"
@@ -431,12 +438,12 @@ export default function AdminPage() {
                       {profile.suspended ? (
                         <>
                           <ShieldCheck className="size-3.5" />
-                          Reactivate
+                          <span className="hidden sm:inline">Reactivate</span>
                         </>
                       ) : (
                         <>
                           <ShieldOff className="size-3.5" />
-                          Suspend
+                          <span className="hidden sm:inline">Suspend</span>
                         </>
                       )}
                     </Button>
@@ -576,8 +583,8 @@ function StatCard({
   tone?: "destructive";
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+    <div className="rounded-xl border border-border bg-card p-2.5 sm:p-3">
+      <p className="truncate text-[9px] font-bold uppercase tracking-wider text-muted-foreground sm:text-[10px]">
         {label}
       </p>
 
@@ -585,7 +592,7 @@ function StatCard({
         <Skeleton className="mt-1.5 h-6 w-10" />
       ) : (
         <p
-          className={`mt-1 text-xl font-black ${tone === "destructive" && (value ?? 0) > 0 ? "text-destructive" : ""}`}
+          className={`mt-1 text-lg font-black sm:text-xl ${tone === "destructive" && (value ?? 0) > 0 ? "text-destructive" : ""}`}
         >
           {value ?? 0}
         </p>
@@ -616,7 +623,7 @@ function AdminSkeleton() {
       <header className="border-b border-border px-4 py-4">
         <Skeleton className="h-6 w-24" />
       </header>
-      <div className="grid grid-cols-3 gap-3 px-4 py-4">
+      <div className="grid grid-cols-3 gap-2 px-4 py-4 sm:gap-3">
         {Array.from({ length: 3 }).map((_, index) => (
           <Skeleton key={index} className="h-16 rounded-xl" />
         ))}

@@ -38,10 +38,10 @@ export function Sidebar({
   // Profile link never mistakenly points at /auth while signed in.
   const metadataUsername = (user?.user_metadata as { username?: string } | undefined)?.username;
   const username = user ? (fetchedUsername ?? metadataUsername ?? null) : null;
+  const effectiveRole = user ? role : null;
 
   useEffect(() => {
     if (!user) {
-      setRole(null);
       return;
     }
     let ignore = false;
@@ -138,7 +138,7 @@ export function Sidebar({
             <span className="hidden xl:inline">Profile</span>
           </Link>
 
-          {role === "admin" && (
+          {effectiveRole === "admin" && (
             <Link
               href="/admin"
               className={navItem(path.startsWith("/admin"))}

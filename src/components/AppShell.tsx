@@ -10,11 +10,13 @@ import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
 import { LiveScores, LiveScoresRail } from "./LiveScores";
 import { useRealtimePosts } from "@/hooks/useRealtimePosts";
+import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
 
   useRealtimePosts();
+  const unreadNotifications = useUnreadNotifications();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -38,7 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="mx-auto flex max-w-[1265px] justify-center">
         <aside className="sticky top-0 hidden h-screen w-[68px] shrink-0 lg:block xl:w-[275px]">
-          <Sidebar onSearch={() => setSearchOpen(true)} />
+          <Sidebar onSearch={() => setSearchOpen(true)} unreadNotifications={unreadNotifications} />
         </aside>
 
         <main className="min-h-screen w-full max-w-2xl border-x border-border pb-28 lg:pb-0">
@@ -65,7 +67,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <TeamSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
 
-      <BottomNav />
+      <BottomNav unreadNotifications={unreadNotifications} />
     </div>
   );
 }

@@ -109,6 +109,7 @@ type NavItemProps = {
   label: string;
   icon: LucideIcon;
   active: boolean;
+  showBadge?: boolean;
 };
 
 function NavItem({
@@ -116,6 +117,7 @@ function NavItem({
   label,
   icon: Icon,
   active,
+  showBadge,
 }: NavItemProps) {
   return (
     <Link
@@ -142,13 +144,18 @@ function NavItem({
               ],
         )}
       >
-        <Icon
-          className={cn(
-            "shrink-0 transition-all duration-300",
-            active ? "size-7" : "size-6",
+        <span className="relative shrink-0">
+          <Icon
+            className={cn(
+              "transition-all duration-300",
+              active ? "size-7" : "size-6",
+            )}
+            strokeWidth={active ? 2 : 1.5}
+          />
+          {showBadge && (
+            <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-destructive ring-2 ring-background" />
           )}
-          strokeWidth={active ? 2 : 1.5}
-        />
+        </span>
 
         {/* <span
           className={cn(
@@ -165,7 +172,11 @@ function NavItem({
   );
 }
 
-export function BottomNav() {
+export function BottomNav({
+  unreadNotifications = 0,
+}: {
+  unreadNotifications?: number;
+}) {
   const pathname = usePathname();
   const { user } = useAuth();
 
@@ -270,6 +281,7 @@ export function BottomNav() {
             label="Alerts"
             icon={Bell}
             active={isAlerts}
+            showBadge={unreadNotifications > 0}
           />
 
           <NavItem

@@ -139,7 +139,7 @@ const FEATURED_COMPETITION_KEYWORDS = [
   "confederations cup",
 ];
 
-function isFeaturedCompetition(league: string): boolean {
+export function isFeaturedCompetition(league: string): boolean {
   const value = league.toLowerCase();
 
   return FEATURED_COMPETITION_KEYWORDS.some((keyword) => value.includes(keyword));
@@ -388,6 +388,17 @@ export async function getExploreGames(): Promise<ExploreGame[]> {
   return fresh;
 }
 
+export async function getFifaGames(): Promise<ExploreGame[]> {
+  const games = await getExploreGames();
+
+  return games.filter((game) => isFeaturedCompetition(game.league));
+}
+
+// Same rationale as the explore-list cache: Highlightly rate-limits single-game
+// lookups too, and without a fallback a transient 429 turns straight into a
+// "game not found" 404 for the user instead of just serving slightly-stale data.
+const detailCache = new Map<string, { data: GameDetail; fetchedAt: number }>();
+
 export async function getGameDetail(id: string): Promise<GameDetail | null> {
   const normalizedId = id.trim();
 
@@ -408,10 +419,16 @@ export async function getGameDetail(id: string): Promise<GameDetail | null> {
   );
 
   if (!match) {
+    const cached = detailCache.get(normalizedId);
+
+    if (cached && Date.now() - cached.fetchedAt < STALE_TTL_MS) {
+      return cached.data;
+    }
+
     return null;
   }
 
-  return {
+  const detail: GameDetail = {
     ...normalize(match, sport),
     description: null,
     season: match.league?.season ? String(match.league.season) : null,
@@ -424,4 +441,8 @@ export async function getGameDetail(id: string): Promise<GameDetail | null> {
       away: stat.away !== null && stat.away !== undefined ? String(stat.away) : "-",
     })),
   };
+
+  detailCache.set(normalizedId, { data: detail, fetchedAt: Date.now() });
+
+  return detail;
 }

@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { mapPostsIn, removePostFrom, POST_QUERY_KEYS } from "@/lib/post-cache";
+import { friendlyErrorMessage } from "@/lib/errors";
 import { UserListDialog } from "@/components/UserListDialog";
 import { ShareDialog } from "@/components/ShareDialog";
 import { CommentsDialog } from "@/components/CommentsDialog";
@@ -163,7 +164,7 @@ export function PostCard({
       return { snapshot };
     },
     onError: (e: Error, _vars, context) => {
-      toast.error(e.message);
+      toast.error(friendlyErrorMessage(e));
       context?.snapshot.forEach(([key, data]) => qc.setQueryData(key, data));
     },
   });
@@ -211,7 +212,7 @@ export function PostCard({
       return { snapshot };
     },
     onError: (e: Error, _vars, context) => {
-      toast.error(e.message);
+      toast.error(friendlyErrorMessage(e));
       context?.snapshot.forEach(([key, data]) => qc.setQueryData(key, data));
     },
   });
@@ -228,7 +229,7 @@ export function PostCard({
     },
     onSuccess: () => toast.success("Post deleted"),
     onError: (e: Error, _vars, context) => {
-      toast.error(e.message);
+      toast.error(friendlyErrorMessage(e));
       context?.snapshot.forEach(([key, data]) => qc.setQueryData(key, data));
     },
   });

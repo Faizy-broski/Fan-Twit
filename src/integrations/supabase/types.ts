@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_activity_log: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_activity_log_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_activity_log_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       games: {
         Row: {
           away_score: number | null
@@ -94,6 +133,61 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          actor_id: string
+          comment_id: string | null
+          created_at: string
+          id: string
+          post_id: string
+          read: boolean
+          recipient_id: string
+          type: string
+        }
+        Insert: {
+          actor_id: string
+          comment_id?: string | null
+          created_at?: string
+          id?: string
+          post_id: string
+          read?: boolean
+          recipient_id: string
+          type: string
+        }
+        Update: {
+          actor_id?: string
+          comment_id?: string | null
+          created_at?: string
+          id?: string
+          post_id?: string
+          read?: boolean
+          recipient_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_actor_id_profiles_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
             referencedColumns: ["id"]
           },
         ]
@@ -253,6 +347,10 @@ export type Database = {
           display_name: string | null
           favorite_team: string | null
           id: string
+          role: string
+          suspended: boolean
+          suspended_at: string | null
+          suspended_reason: string | null
           username: string
         }
         Insert: {
@@ -263,6 +361,10 @@ export type Database = {
           display_name?: string | null
           favorite_team?: string | null
           id: string
+          role?: string
+          suspended?: boolean
+          suspended_at?: string | null
+          suspended_reason?: string | null
           username: string
         }
         Update: {
@@ -273,6 +375,10 @@ export type Database = {
           display_name?: string | null
           favorite_team?: string | null
           id?: string
+          role?: string
+          suspended?: boolean
+          suspended_at?: string | null
+          suspended_reason?: string | null
           username?: string
         }
         Relationships: []

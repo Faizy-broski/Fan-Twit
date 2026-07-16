@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { ImagePlus, X } from "lucide-react";
 import { POST_QUERY_KEYS } from "@/lib/post-cache";
+import { friendlyErrorMessage } from "@/lib/errors";
 
 export function PostComposer({
   userId,
@@ -178,7 +179,7 @@ export function PostComposer({
       toast.success(parentPostId ? "Reply posted" : "Posted");
       onPosted?.();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(friendlyErrorMessage(e)),
   });
 
   const pickMedia = (f: File) => {

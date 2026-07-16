@@ -43,6 +43,7 @@ async function fetchUserPosts(userId: string): Promise<PostRow[]> {
     .from("posts")
     .select(POST_SELECT)
     .eq("user_id", userId)
+    .is("parent_post_id", null)
     .order("created_at", { ascending: false })
     .limit(50);
 

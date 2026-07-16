@@ -3,18 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Heart, Tag } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Heart, MessageCircle, Repeat2, Tag } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
+import { UNREAD_NOTIFICATIONS_QUERY_KEY } from "@/hooks/useUnreadNotifications";
 import { supabase } from "@/integrations/supabase/client";
 import { formatRelative } from "@/lib/team-index";
 
 type Alert =
   | {
-      kind: "like";
+      kind: "like" | "repost" | "comment";
       when: string;
       from: string;
       postId: string;
@@ -29,16 +30,13 @@ type Alert =
       symbol: string;
     };
 
-type LikeAlertRow = {
+type NotificationRow = {
+  id: string;
+  type: "like" | "repost" | "comment";
   created_at: string;
-  user_id: string;
-  post_id: string;
-  posts: {
-    body: string;
-  };
-  profiles: {
-    username: string;
-  } | null;
+  post: { id: string; body: string } | null;
+  comment: { id: string; body: string } | null;
+  actor: { username: string } | null;
 };
 
 type TeamAlertRow = {
@@ -57,6 +55,7 @@ type TeamAlertRow = {
 export default function AlertsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -79,38 +78,38 @@ export default function AlertsPage() {
 
       const output: Alert[] = [];
 
-      const { data: likes, error: likesError } = await supabase
-        .from("likes")
-        .select(
-          `
-            created_at,
-            user_id,
-            post_id,
-            posts!inner (
-              user_id,
-              body
-            ),
-            profiles:user_id (
-              username
-            )
-          `,
-        )
-        .eq("posts.user_id", user.id)
-        .neq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(30);
+      const { data: notifications, error: notificationsError } =
+        await supabase
+          .from("notifications")
+          .select(
+            `
+              id,
+              type,
+              created_at,
+              post:posts!notifications_post_id_fkey ( id, body ),
+              comment:posts!notifications_comment_id_fkey ( id, body ),
+              actor:profiles!notifications_actor_id_profiles_fkey ( username )
+            `,
+          )
+          .eq("recipient_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(50);
 
-      if (likesError) {
-        throw new Error(likesError.message);
+      if (notificationsError) {
+        throw new Error(notificationsError.message);
       }
 
-      for (const like of (likes ?? []) as unknown as LikeAlertRow[]) {
+      for (const row of (notifications ?? []) as unknown as NotificationRow[]) {
+        if (!row.post) {
+          continue;
+        }
+
         output.push({
-          kind: "like",
-          when: like.created_at,
-          from: like.profiles?.username ?? "someone",
-          postId: like.post_id,
-          postBody: like.posts.body,
+          kind: row.type,
+          when: row.created_at,
+          from: row.actor?.username ?? "someone",
+          postId: row.post.id,
+          postBody: row.type === "comment" ? (row.comment?.body ?? row.post.body) : row.post.body,
         });
       }
 
@@ -136,6 +135,7 @@ export default function AlertsPage() {
                   body,
                   created_at,
                   user_id,
+                  parent_post_id,
                   profiles!posts_user_id_profiles_fkey (
                     username
                   )
@@ -143,6 +143,7 @@ export default function AlertsPage() {
               `,
             )
             .eq("team_symbol", profile.favorite_team)
+            .is("posts.parent_post_id", null)
             .order("post_id", { ascending: false })
             .limit(20);
 
@@ -177,13 +178,35 @@ export default function AlertsPage() {
     staleTime: 30_000,
   });
 
+  // Visiting the page clears the unread badge — everything shown here is,
+  // by definition, now "seen".
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    const markRead = async () => {
+      await supabase
+        .from("notifications")
+        .update({ read: true })
+        .eq("recipient_id", user.id)
+        .eq("read", false);
+
+      queryClient.invalidateQueries({
+        queryKey: [...UNREAD_NOTIFICATIONS_QUERY_KEY, user.id],
+      });
+    };
+
+    void markRead();
+  }, [user?.id, queryClient]);
+
   if (authLoading || (!user && !authLoading)) {
     return (
       <AppShell>
         <header className="border-b border-border px-4 py-4">
           <h1 className="text-xl font-black tracking-tight">Alerts</h1>
           <p className="text-xs text-muted-foreground">
-            Likes on your posts and mentions of your favorite team.
+            Likes, reposts, comments, and mentions of your favorite team.
           </p>
         </header>
         <AlertsListSkeleton />
@@ -199,7 +222,7 @@ export default function AlertsPage() {
         </h1>
 
         <p className="text-xs text-muted-foreground">
-          Likes on your posts and mentions of your favorite team.
+          Likes, reposts, comments, and mentions of your favorite team.
         </p>
       </header>
 
@@ -234,9 +257,16 @@ export default function AlertsPage() {
               className="flex gap-3 px-4 py-3"
             >
               <div className="mt-0.5 shrink-0">
-                {alert.kind === "like" ? (
+                {alert.kind === "like" && (
                   <Heart className="size-4 text-destructive" />
-                ) : (
+                )}
+                {alert.kind === "repost" && (
+                  <Repeat2 className="size-4 text-emerald-500" />
+                )}
+                {alert.kind === "comment" && (
+                  <MessageCircle className="size-4 text-primary" />
+                )}
+                {alert.kind === "team" && (
                   <Tag className="size-4 text-primary" />
                 )}
               </div>
@@ -249,9 +279,10 @@ export default function AlertsPage() {
                   >
                     @{alert.from}
                   </Link>{" "}
-                  {alert.kind === "like"
-                    ? "liked your post"
-                    : `tagged $${alert.symbol}`}
+                  {alert.kind === "like" && "liked your post"}
+                  {alert.kind === "repost" && "reposted your post"}
+                  {alert.kind === "comment" && "commented on your post"}
+                  {alert.kind === "team" && `tagged $${alert.symbol}`}
 
                   <span className="text-muted-foreground">
                     {" "}

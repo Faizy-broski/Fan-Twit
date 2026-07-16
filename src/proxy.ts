@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/me", "/compose", "/alerts"];
+const PROTECTED_PREFIXES = ["/me", "/compose", "/alerts", "/admin"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -48,9 +48,23 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
+
+  if (isAdminRoute) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile?.role !== "admin") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+  }
+
   return response;
 }
 
 export const config = {
-  matcher: ["/me/:path*", "/compose/:path*", "/alerts/:path*"],
+  matcher: ["/me/:path*", "/compose/:path*", "/alerts/:path*", "/admin/:path*"],
 };

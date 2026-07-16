@@ -44,6 +44,26 @@ async function fetchExploreGames(): Promise<ExploreGame[]> {
   return response.json() as Promise<ExploreGame[]>;
 }
 
+async function fetchFifaGames(): Promise<ExploreGame[]> {
+  const response = await fetch("/api/games/fifa", {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const error = (await response
+      .json()
+      .catch(() => null)) as ApiErrorResponse | null;
+
+    throw new Error(error?.message ?? "Failed to fetch FIFA games");
+  }
+
+  return response.json() as Promise<ExploreGame[]>;
+}
+
 // Hot teams / featured matchups are both derived from the games list we
 // already fetch for "Live & upcoming games" — no extra Highlightly requests.
 function deriveHotTeams(games: ExploreGame[]): HotTeam[] {
@@ -107,6 +127,18 @@ export default function ExplorePage() {
   } = useQuery<ExploreGame[]>({
     queryKey: ["explore-live-games"],
     queryFn: fetchExploreGames,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    refetchIntervalInBackground: false,
+  });
+
+  const {
+    data: fifaGames = [],
+    isLoading: fifaLoading,
+    isError: fifaFailed,
+  } = useQuery<ExploreGame[]>({
+    queryKey: ["explore-fifa-games"],
+    queryFn: fetchFifaGames,
     refetchInterval: 60_000,
     staleTime: 30_000,
     refetchIntervalInBackground: false,
@@ -198,6 +230,47 @@ export default function ExplorePage() {
               </StatusMessage>
             )}
         </div>
+      </Section>
+
+      <Section title="FIFA & internationals">
+        {fifaLoading && <RowListSkeleton />}
+
+        {fifaFailed && (
+          <StatusMessage className="px-4">
+            FIFA matches could not be loaded.
+          </StatusMessage>
+        )}
+
+        {!fifaLoading && !fifaFailed && fifaGames.length === 0 && (
+          <StatusMessage className="px-4">
+            No FIFA matches right now.
+          </StatusMessage>
+        )}
+
+        {!fifaLoading && !fifaFailed && fifaGames.length > 0 && (
+          <ul className="divide-y divide-border">
+            {fifaGames.map((game) => (
+              <li key={game.id}>
+                <Link
+                  href={`/game/${encodeURIComponent(game.id)}`}
+                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {game.league || game.sport}
+                    </p>
+
+                    <p className="mt-0.5 truncate text-sm font-semibold">
+                      {game.home} <span className="text-muted-foreground">vs</span> {game.away}
+                    </p>
+                  </div>
+
+                  <GameStatus game={game} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </Section>
 
       <Section title="Hot teams">

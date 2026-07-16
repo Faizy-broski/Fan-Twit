@@ -11,6 +11,7 @@ import {
   LogOut,
   PlusSquare,
   Search,
+  ShieldCheck,
   User as UserIcon,
 } from "lucide-react";
 
@@ -18,12 +19,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-export function Sidebar({ onSearch }: { onSearch: () => void }) {
+export function Sidebar({
+  onSearch,
+  unreadNotifications = 0,
+}: {
+  onSearch: () => void;
+  unreadNotifications?: number;
+}) {
   const path = usePathname();
   const router = useRouter();
   const qc = useQueryClient();
   const { user, loading } = useAuth();
   const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   // The DB profiles fetch below is the source of truth, but it's an extra
   // round-trip that races the render — while logged in and it's still in
   // flight (or fails), fall back to the username set at signup so the
@@ -32,15 +40,21 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const username = user ? (fetchedUsername ?? metadataUsername ?? null) : null;
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setRole(null);
+      return;
+    }
     let ignore = false;
     supabase
       .from("profiles")
-      .select("username")
+      .select("username, role")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        if (!ignore) setFetchedUsername(data?.username ?? null);
+        if (!ignore) {
+          setFetchedUsername(data?.username ?? null);
+          setRole(data?.role ?? null);
+        }
       });
     return () => {
       ignore = true;
@@ -68,12 +82,12 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
       <div>
         <Link
           href="/"
-          className="mb-2 flex items-center justify-center gap-2 px-3 py-2 text-lg font-black tracking-tight xl:justify-start"
+          className="mb-2 flex items-center justify-center gap-0 px-3 py-2 text-lg font-black tracking-tight xl:justify-start"
         >
           <span className="rounded-md bg-primary px-1.5 py-0.5 text-primary-foreground">
             Fan
-          </span>
-          <span className="hidden xl:inline">sport</span>
+            </span>
+            <span className="hidden xl:inline">sport</span> 
         </Link>
 
         <nav className="flex flex-col gap-1">
@@ -106,7 +120,12 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
             className={navItem(path.startsWith("/alerts"))}
             aria-label="Alerts"
           >
-            <Bell className="size-6 shrink-0" />
+            <span className="relative shrink-0">
+              <Bell className="size-6" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-destructive ring-2 ring-background" />
+              )}
+            </span>
             <span className="hidden xl:inline">Alerts</span>
           </Link>
 
@@ -118,6 +137,17 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
             <UserIcon className="size-6 shrink-0" />
             <span className="hidden xl:inline">Profile</span>
           </Link>
+
+          {role === "admin" && (
+            <Link
+              href="/admin"
+              className={navItem(path.startsWith("/admin"))}
+              aria-label="Admin"
+            >
+              <ShieldCheck className="size-6 shrink-0" />
+              <span className="hidden xl:inline">Admin</span>
+            </Link>
+          )}
         </nav>
 
         <Link

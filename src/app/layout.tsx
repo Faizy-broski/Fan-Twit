@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Providers } from "./providers";
 import { Geist, Geist_Mono } from "next/font/google";
+import { createSupabaseServerComponentClient } from "@/integrations/supabase/server";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -52,11 +53,22 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read the session server-side (from the request's cookies) so the
+  // client's first render already knows whether a user is signed in,
+  // instead of starting logged-out and flashing to logged-in once the
+  // browser resolves its own session lookup. This opts the app into
+  // dynamic rendering, which is already the case in practice — nearly
+  // every page here is a client component driven by live/session data.
+  const supabase = await createSupabaseServerComponentClient();
+  const initialUser = supabase
+    ? (await supabase.auth.getSession()).data.session?.user ?? null
+    : null;
+
   return (
     <html
       lang="en"
@@ -64,7 +76,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        <Providers initialUser={initialUser}>{children}</Providers>
       </body>
     </html>
   );

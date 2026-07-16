@@ -69,6 +69,20 @@ export default async function RootLayout({
     ? (await supabase.auth.getSession()).data.session?.user ?? null
     : null;
 
+  // Same rationale as initialUser: fetched here so the admin nav link (and
+  // anything else keyed on role/username) is correct on the very first
+  // render of every page, instead of every fresh Sidebar/BottomNav mount
+  // re-fetching it from scratch on each navigation.
+  const initialProfile =
+    supabase && initialUser
+      ? await supabase
+          .from("profiles")
+          .select("username, role")
+          .eq("id", initialUser.id)
+          .maybeSingle()
+          .then(({ data }) => (data ? { username: data.username, role: data.role } : null))
+      : null;
+
   return (
     <html
       lang="en"
@@ -76,7 +90,9 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <Providers initialUser={initialUser}>{children}</Providers>
+        <Providers initialUser={initialUser} initialProfile={initialProfile}>
+          {children}
+        </Providers>
       </body>
     </html>
   );

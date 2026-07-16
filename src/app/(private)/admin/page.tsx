@@ -61,20 +61,6 @@ type ActivityRow = {
   post: { id: string; body: string } | null;
 };
 
-async function fetchMyRole(userId: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data?.role ?? null;
-}
-
 async function fetchStats(): Promise<Stats> {
   const [{ count: totalUsers }, { count: suspendedUsers }, { count: totalPosts }] =
     await Promise.all([
@@ -156,7 +142,7 @@ async function fetchActivity(): Promise<ActivityRow[]> {
 
 export default function AdminPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, profile, profileLoading: roleLoading } = useAuth();
   const qc = useQueryClient();
 
   const [search, setSearch] = useState("");
@@ -169,13 +155,7 @@ export default function AdminPage() {
     }
   }, [authLoading, user, router]);
 
-  const { data: myRole, isLoading: roleLoading } = useQuery<string | null>({
-    queryKey: ["admin-my-role", user?.id],
-    queryFn: () => fetchMyRole(user!.id),
-    enabled: Boolean(user?.id),
-    staleTime: 60_000,
-  });
-
+  const myRole = profile?.role ?? null;
   const isAdmin = myRole === "admin";
 
   useEffect(() => {

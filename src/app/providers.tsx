@@ -12,10 +12,11 @@ import { ThemeProvider, useTheme } from "next-themes";
 import { Toaster } from "sonner";
 import type { User } from "@supabase/supabase-js";
 
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider, type Profile } from "@/hooks/useAuth";
 
 type ProvidersProps = {
   initialUser: User | null;
+  initialProfile: Profile | null;
   children: ReactNode;
 };
 
@@ -32,7 +33,7 @@ function ThemedToaster() {
   );
 }
 
-export function Providers({ initialUser, children }: ProvidersProps) {
+export function Providers({ initialUser, initialProfile, children }: ProvidersProps) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -49,7 +50,7 @@ export function Providers({ initialUser, children }: ProvidersProps) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider initialUser={initialUser}>
+        <AuthProvider initialUser={initialUser} initialProfile={initialProfile}>
           {children}
 
           <ThemedToaster />

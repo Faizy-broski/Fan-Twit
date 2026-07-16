@@ -99,10 +99,8 @@ import {
   User as UserIcon,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 type NavItemProps = {
@@ -179,46 +177,20 @@ export function BottomNav({
   unreadNotifications?: number;
 }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
-  const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
-
+  // profile comes from the shared AuthProvider (fetched once, seeded from
+  // the server on first load) instead of a per-mount fetch here — see the
+  // matching comment in Sidebar.tsx for why that used to cause the admin
+  // link (and this username lookup) to disappear/reappear on navigation.
   const metadataUsername = (
     user?.user_metadata as { username?: string } | undefined
   )?.username;
 
   const username = user
-    ? (fetchedUsername ?? metadataUsername ?? null)
+    ? (profile?.username ?? metadataUsername ?? null)
     : null;
-  const effectiveRole = user ? role : null;
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    let ignore = false;
-
-    const fetchProfile = async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("username, role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (!ignore && !error) {
-        setFetchedUsername(data?.username ?? null);
-        setRole(data?.role ?? null);
-      }
-    };
-
-    void fetchProfile();
-
-    return () => {
-      ignore = true;
-    };
-  }, [user]);
+  const effectiveRole = user ? profile?.role : null;
 
   const isHome = pathname === "/";
   const isExplore = pathname.startsWith("/explore");

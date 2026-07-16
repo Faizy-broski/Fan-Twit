@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,37 +28,19 @@ export function Sidebar({
   const path = usePathname();
   const router = useRouter();
   const qc = useQueryClient();
-  const { user, loading } = useAuth();
-  const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
-  // The DB profiles fetch below is the source of truth, but it's an extra
-  // round-trip that races the render — while logged in and it's still in
-  // flight (or fails), fall back to the username set at signup so the
-  // Profile link never mistakenly points at /auth while signed in.
+  const { user, loading, profile } = useAuth();
+  // profile comes from the shared AuthProvider (fetched once, seeded from
+  // the server on first load) instead of a per-mount fetch here — Sidebar
+  // used to remount fresh on every page navigation (it's rendered inside
+  // AppShell, which each page constructs itself) and refetch from scratch,
+  // which is why the admin link would disappear and reappear on every
+  // navigation.
+  // The DB profile is the source of truth, but while it's still in flight
+  // (or fails) fall back to the username set at signup so the Profile link
+  // never mistakenly points at /auth while signed in.
   const metadataUsername = (user?.user_metadata as { username?: string } | undefined)?.username;
-  const username = user ? (fetchedUsername ?? metadataUsername ?? null) : null;
-  const effectiveRole = user ? role : null;
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    let ignore = false;
-    supabase
-      .from("profiles")
-      .select("username, role")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!ignore) {
-          setFetchedUsername(data?.username ?? null);
-          setRole(data?.role ?? null);
-        }
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [user]);
+  const username = user ? (profile?.username ?? metadataUsername ?? null) : null;
+  const effectiveRole = user ? profile?.role : null;
 
   const signOut = async () => {
     await qc.cancelQueries();

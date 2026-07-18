@@ -247,7 +247,7 @@ export function PostCard({
   return (
     <article
       className={`border-b border-border transition-colors hover:bg-muted/30 ${
-        isComment ? "px-2 py-2" : "px-4 py-4"
+        isComment ? "px-2 py-2" : "px-3 py-2.5 sm:px-4 sm:py-4"
       }`}
     >
       {repostedBy && (
@@ -263,7 +263,7 @@ export function PostCard({
         <Link
           href={`/user/${encodeURIComponent(author?.username || "")}`}
           className={`shrink-0 rounded-full bg-gradient-to-br from-primary to-accent-foreground flex items-center justify-center text-primary-foreground font-bold overflow-hidden transition-opacity hover:opacity-90 ${
-            isComment ? "size-8 text-sm" : "size-11"
+            isComment ? "size-8 text-sm" : "size-9 sm:size-11"
           }`}
         >
           {author?.avatar_url ? (
@@ -316,7 +316,7 @@ export function PostCard({
           </div>
           <Link
             href={`/post/${encodeURIComponent(post.id)}`}
-            className={isComment ? "mt-0.5 block" : "mt-1.5 block"}
+            className={isComment ? "mt-0.5 block" : "mt-1 block sm:mt-1.5"}
           >
             <p
               className={`whitespace-pre-wrap break-words leading-normal text-foreground ${
@@ -330,7 +330,7 @@ export function PostCard({
                 src={post.media_url}
                 alt=""
                 className={`max-w-full rounded-2xl border border-border ${
-                  isComment ? "mt-1.5 max-h-56" : "mt-3 max-h-[32rem]"
+                  isComment ? "mt-1.5 max-h-56" : "mt-2 max-h-72 sm:mt-3 sm:max-h-[32rem]"
                 }`}
                 loading="lazy"
               />
@@ -338,22 +338,22 @@ export function PostCard({
           </Link>
           <div
             className={`flex items-center text-muted-foreground ${
-              isComment ? "mt-1 max-w-[140px] justify-between" : "mt-3 max-w-sm justify-between"
+              isComment ? "mt-1 max-w-[140px] justify-between" : "mt-1 max-w-sm justify-between sm:mt-3"
             }`}
           >
             <button
               type="button"
               onClick={() => (onOpenComments ? onOpenComments(post) : setCommentsOpen(true))}
               className={`group inline-flex items-center gap-1.5 rounded-full transition-colors hover:text-primary ${
-                isComment ? "py-1 pl-0 pr-2" : "-ml-2 py-2 pl-2 pr-3"
+                isComment ? "py-1 pl-0 pr-2" : "-ml-2 py-1 pl-2 pr-3 sm:py-2"
               }`}
             >
               <span
                 className={`flex items-center justify-center rounded-full transition-colors group-hover:bg-primary/10 ${
-                  isComment ? "size-6" : "size-8"
+                  isComment ? "size-6" : "size-7 sm:size-8"
                 }`}
               >
-                <MessageCircle className={isComment ? "size-4" : "size-[18px]"} />
+                <MessageCircle className={isComment ? "size-4" : "size-4 sm:size-[18px]"} />
               </span>
               <span className="text-xs tabular-nums">{replyCount || ""}</span>
             </button>
@@ -366,16 +366,16 @@ export function PostCard({
                   type="button"
                   onClick={() => toggleRepost.mutate()}
                   disabled={toggleRepost.isPending}
-                  className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-green-600/10"
+                  className="flex size-7 items-center justify-center rounded-full transition-colors hover:bg-green-600/10 sm:size-8"
                   aria-label={reposted ? "Undo repost" : "Repost"}
                 >
-                  <Repeat2 className="size-[18px] transition-transform active:scale-90" />
+                  <Repeat2 className="size-4 transition-transform active:scale-90 sm:size-[18px]" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setRepostsOpen(true)}
                   disabled={!repostCount}
-                  className="rounded-full py-2 pr-3 text-xs tabular-nums hover:underline disabled:no-underline"
+                  className="rounded-full py-1 pr-3 text-xs tabular-nums hover:underline disabled:no-underline sm:py-2"
                 >
                   {repostCount || ""}
                 </button>
@@ -390,12 +390,12 @@ export function PostCard({
                 onClick={() => toggleLike.mutate()}
                 disabled={toggleLike.isPending}
                 className={`flex items-center justify-center rounded-full transition-colors hover:bg-destructive/10 ${
-                  isComment ? "size-6" : "size-8"
+                  isComment ? "size-6" : "size-7 sm:size-8"
                 }`}
                 aria-label={liked ? "Unlike" : "Like"}
               >
                 <Heart
-                  className={`transition-transform active:scale-90 ${isComment ? "size-4" : "size-[18px]"} ${liked ? "fill-current" : ""}`}
+                  className={`transition-transform active:scale-90 ${isComment ? "size-4" : "size-4 sm:size-[18px]"} ${liked ? "fill-current" : ""}`}
                 />
               </button>
               <button
@@ -403,7 +403,7 @@ export function PostCard({
                 onClick={() => setLikesOpen(true)}
                 disabled={!likeCount}
                 className={`rounded-full text-xs tabular-nums hover:underline disabled:no-underline ${
-                  isComment ? "py-1 pr-2" : "py-2 pr-3"
+                  isComment ? "py-1 pr-2" : "py-1 pr-3 sm:py-2"
                 }`}
               >
                 {likeCount || ""}
@@ -414,11 +414,11 @@ export function PostCard({
               <button
                 type="button"
                 onClick={() => setShareOpen(true)}
-                className="group inline-flex items-center gap-1.5 rounded-full py-2 pl-2 pr-2 text-sm transition-colors hover:text-primary"
+                className="group inline-flex items-center gap-1.5 rounded-full py-1 pl-2 pr-2 text-sm transition-colors hover:text-primary sm:py-2"
                 aria-label="Share post"
               >
-                <span className="flex size-8 items-center justify-center rounded-full transition-colors group-hover:bg-primary/10">
-                  <Share className="size-[18px]" />
+                <span className="flex size-7 items-center justify-center rounded-full transition-colors group-hover:bg-primary/10 sm:size-8">
+                  <Share className="size-4 sm:size-[18px]" />
                 </span>
               </button>
             )}

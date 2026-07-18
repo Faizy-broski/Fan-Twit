@@ -130,7 +130,9 @@ function NavItem({
           "flex items-center justify-center transition-all duration-300 ease-out",
           active
             ? [
-                "absolute -top-5 size-12 rounded-full",
+                // "absolute -top-5 size-12 rounded-full",
+                "absolute size-10 rounded-full",
+
                 "bg-gradient-to-b from-primary to-primary/80",
                 "text-primary-foreground",
                 // "shadow-xl shadow-primary/30",
@@ -147,7 +149,7 @@ function NavItem({
           <Icon
             className={cn(
               "transition-all duration-300",
-              active ? "size-7" : "size-6",
+              active ? "size-6" : "size-5",
             )}
             strokeWidth={active ? 2 : 1.5}
           />

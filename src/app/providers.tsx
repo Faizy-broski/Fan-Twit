@@ -5,6 +5,7 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 import {
+  Suspense,
   type ReactNode,
   useState,
 } from "react";
@@ -13,6 +14,7 @@ import { Toaster } from "sonner";
 import type { User } from "@supabase/supabase-js";
 
 import { AuthProvider, type Profile } from "@/hooks/useAuth";
+import { NavigationProgress } from "@/components/NavigationProgress";
 
 type ProvidersProps = {
   initialUser: User | null;
@@ -50,6 +52,10 @@ export function Providers({ initialUser, initialProfile, children }: ProvidersPr
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
+
         <AuthProvider initialUser={initialUser} initialProfile={initialProfile}>
           {children}
 

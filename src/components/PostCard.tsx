@@ -1,9 +1,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Heart, Link2, MessageCircle, MoreHorizontal, Repeat2, Share, Trash2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { TEAM_TAG_RE, PLAYER_TAG_RE, formatRelative } from "@/lib/team-index";
+import { TEAM_TAG_RE, PLAYER_TAG_RE, GAME_TAG_RE, MENTION_RE, formatRelative } from "@/lib/team-index";
+import type { ExploreGame, GameDetail } from "@/lib/highlightly.functions";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -33,10 +34,41 @@ export type PostRow = {
   post_teams: { team_symbol: string }[];
   reposts?: { user_id: string }[];
   post_players?: { player_symbol: string }[];
+  post_games?: { game_id: string }[];
 };
 
+function GameChip({ id }: { id: string }) {
+  const qc = useQueryClient();
+  const cached = qc
+    .getQueryData<ExploreGame[]>(["explore-live-games"])
+    ?.find((g) => g.id === id);
+
+  const { data } = useQuery({
+    queryKey: ["game-lookup", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/games/${encodeURIComponent(id)}`);
+      if (!res.ok) return null;
+      return (await res.json()) as GameDetail;
+    },
+    enabled: !cached,
+    staleTime: 60_000,
+  });
+
+  const game = cached ?? data;
+  const label = game ? `${game.home} vs ${game.away}` : id;
+
+  return (
+    <Link
+      href={`/game/${encodeURIComponent(id)}`}
+      className="mx-0.5 inline-block rounded-md bg-primary/10 px-1.5 py-0.5 align-baseline text-[13px] font-bold text-primary hover:bg-primary/20"
+    >
+      #{label}
+    </Link>
+  );
+}
+
 export function renderBody(body: string) {
-  type Tok = { kind: "team" | "player"; sym: string; start: number; end: number };
+  type Tok = { kind: "team" | "player" | "game" | "mention"; sym: string; start: number; end: number };
   const toks: Tok[] = [];
   for (const m of body.matchAll(TEAM_TAG_RE)) {
     toks.push({ kind: "team", sym: m[1], start: m.index!, end: m.index! + m[0].length });
@@ -44,6 +76,13 @@ export function renderBody(body: string) {
   for (const m of body.matchAll(PLAYER_TAG_RE)) {
     const at = body.indexOf("@", m.index!);
     toks.push({ kind: "player", sym: m[1], start: at, end: at + 1 + m[1].length });
+  }
+  for (const m of body.matchAll(GAME_TAG_RE)) {
+    toks.push({ kind: "game", sym: m[1], start: m.index!, end: m.index! + m[0].length });
+  }
+  for (const m of body.matchAll(MENTION_RE)) {
+    const at = body.indexOf("@", m.index!);
+    toks.push({ kind: "mention", sym: m[1], start: at, end: at + 1 + m[1].length });
   }
   toks.sort((a, b) => a.start - b.start);
   const out: React.ReactNode[] = [];
@@ -61,11 +100,23 @@ export function renderBody(body: string) {
           ${t.sym}
         </Link>,
       );
-    } else {
+    } else if (t.kind === "player") {
       out.push(
         <Link
           key={i}
           href={`/player/${encodeURIComponent(t.sym)}`}
+          className="mx-0.5 inline-block rounded-md bg-accent px-1.5 py-0.5 align-baseline text-[13px] font-bold text-accent-foreground hover:bg-accent/70"
+        >
+          @{t.sym}
+        </Link>,
+      );
+    } else if (t.kind === "game") {
+      out.push(<GameChip key={i} id={t.sym} />);
+    } else {
+      out.push(
+        <Link
+          key={i}
+          href={`/user/${encodeURIComponent(t.sym)}`}
           className="mx-0.5 inline-block rounded-md bg-accent px-1.5 py-0.5 align-baseline text-[13px] font-bold text-accent-foreground hover:bg-accent/70"
         >
           @{t.sym}

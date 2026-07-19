@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { extractTeamSymbols, extractPlayerSymbols } from "@/lib/team-index";
+import { extractGameIds, extractMentions } from "@/lib/team-index";
 import { toast } from "sonner";
 import Link from "next/link";
 import { ImagePlus, X } from "lucide-react";
 import { POST_QUERY_KEYS } from "@/lib/post-cache";
 import { friendlyErrorMessage } from "@/lib/errors";
+import type { ExploreGame } from "@/lib/highlightly.functions";
+
+type Suggestion =
+  | { kind: "game"; id: string; label: string; league: string }
+  | { kind: "mention"; username: string; label: string };
 
 export function PostComposer({
   userId,
@@ -14,7 +19,7 @@ export function PostComposer({
   defaultPlayer,
   replyToUsername,
   parentPostId,
-  placeholder = "What's happening in sports? Tag teams with $ARS, players with @LBJ…",
+  placeholder = "What's happening in sports? Tag a game with #, mention someone with @username…",
   onPosted,
 }: {
   userId: string | null;
@@ -43,18 +48,16 @@ export function PostComposer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
-  const [fetchedSuggestions, setFetchedSuggestions] = useState<
-    { symbol: string; name: string; league: string; kind: "team" | "player" }[]
-  >([]);
+  const [fetchedSuggestions, setFetchedSuggestions] = useState<Suggestion[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [dismissed, setDismissed] = useState(false);
 
-  // Detect a $XX or @XX token immediately before the caret.
+  // Detect a #game or @mention token immediately before the caret.
   const tokenMatch = (() => {
     const before = body.slice(0, caret);
-    const m = before.match(/(?:^|\s)([$@])([A-Za-z0-9]{2,8})$/);
+    const m = before.match(/(?:^|\s)([#@])([A-Za-z0-9_]{2,20})$/);
     if (!m) return null;
-    return { kind: m[1] === "$" ? ("team" as const) : ("player" as const), query: m[2], start: caret - m[2].length - 1 };
+    return { kind: m[1] === "#" ? ("game" as const) : ("mention" as const), query: m[2], start: caret - m[2].length - 1 };
   })();
   const suggestions = tokenMatch && !dismissed ? fetchedSuggestions : [];
 
@@ -65,31 +68,50 @@ export function PostComposer({
     }
     const term = tokenMatch.query;
     (async () => {
-      if (tokenMatch.kind === "team") {
-        const { data } = await supabase
-          .from("teams")
-          .select("symbol,name,league")
-          .or(`symbol.ilike.${term}%,name.ilike.%${term}%`)
-          .limit(6);
+      if (tokenMatch.kind === "game") {
+        let games = qc.getQueryData<ExploreGame[]>(["explore-live-games"]);
+        if (!games) {
+          try {
+            const res = await fetch("/api/games/explore");
+            games = res.ok ? ((await res.json()) as ExploreGame[]) : [];
+          } catch {
+            games = [];
+          }
+        }
+        const q = term.toLowerCase();
+        const matches = (games ?? [])
+          .filter(
+            (g) =>
+              g.home.toLowerCase().includes(q) ||
+              g.away.toLowerCase().includes(q) ||
+              g.league.toLowerCase().includes(q),
+          )
+          .slice(0, 6);
         if (!ignore) {
-          setFetchedSuggestions((data ?? []).map((t) => ({ ...t, kind: "team" as const })));
+          setFetchedSuggestions(
+            matches.map((g) => ({
+              kind: "game" as const,
+              id: g.id,
+              label: `${g.home} vs ${g.away}`,
+              league: g.league || g.sport,
+            })),
+          );
           setActiveIdx(0);
         }
       } else {
-        const sb = supabase as unknown as {
-          from: (t: string) => {
-            select: (s: string) => {
-              or: (f: string) => { limit: (n: number) => Promise<{ data: { symbol: string; name: string; team_symbol: string | null }[] | null }> };
-            };
-          };
-        };
-        const { data } = await sb
-          .from("players")
-          .select("symbol,name,team_symbol")
-          .or(`symbol.ilike.${term}%,name.ilike.%${term}%`)
+        const { data } = await supabase
+          .from("profiles")
+          .select("username,display_name")
+          .ilike("username", `%${term}%`)
           .limit(6);
         if (!ignore) {
-          setFetchedSuggestions((data ?? []).map((p) => ({ symbol: p.symbol, name: p.name, league: p.team_symbol ?? "", kind: "player" as const })));
+          setFetchedSuggestions(
+            (data ?? []).map((p) => ({
+              kind: "mention" as const,
+              username: p.username,
+              label: p.display_name || p.username,
+            })),
+          );
           setActiveIdx(0);
         }
       }
@@ -99,12 +121,11 @@ export function PostComposer({
     };
   }, [tokenMatch?.kind, tokenMatch?.query]);
 
-  const applySuggestion = (s: { symbol: string; kind: "team" | "player" }) => {
+  const applySuggestion = (s: Suggestion) => {
     if (!tokenMatch) return;
-    const prefix = s.kind === "team" ? "$" : "@";
+    const insert = s.kind === "game" ? `#${s.id} ` : `@${s.username} `;
     const before = body.slice(0, tokenMatch.start);
     const after = body.slice(caret);
-    const insert = `${prefix}${s.symbol} `;
     const next = `${before}${insert}${after}`;
     const nextCaret = before.length + insert.length;
     setBody(next);
@@ -146,27 +167,22 @@ export function PostComposer({
         .select("id")
         .single();
       if (error) throw error;
-      const symbols = extractTeamSymbols(trimmed);
-      if (symbols.length) {
-        // Only insert tags for teams that exist.
-        const { data: teams } = await supabase
-          .from("teams")
-          .select("symbol")
-          .in("symbol", symbols);
-        const valid = (teams ?? []).map((t) => ({ post_id: post.id, team_symbol: t.symbol }));
-        if (valid.length) await supabase.from("post_teams").insert(valid);
+      const gameIds = extractGameIds(trimmed);
+      if (gameIds.length) {
+        await supabase
+          .from("post_games")
+          .insert(gameIds.map((game_id) => ({ post_id: post.id, game_id })));
       }
-      const sb = supabase as unknown as {
-        from: (t: string) => {
-          select: (s: string) => { in: (c: string, v: string[]) => Promise<{ data: { symbol: string }[] | null }> };
-          insert: (v: unknown) => Promise<unknown>;
-        };
-      };
-      const players = extractPlayerSymbols(trimmed);
-      if (players.length) {
-        const { data: found } = await sb.from("players").select("symbol").in("symbol", players);
-        const valid = (found ?? []).map((p) => ({ post_id: post.id, player_symbol: p.symbol }));
-        if (valid.length) await sb.from("post_players").insert(valid);
+      const mentions = extractMentions(trimmed);
+      if (mentions.length) {
+        const { data: found } = await supabase
+          .from("profiles")
+          .select("id")
+          .in("username", mentions);
+        const valid = (found ?? [])
+          .filter((p) => p.id !== userId)
+          .map((p) => ({ post_id: post.id, mentioned_user_id: p.id }));
+        if (valid.length) await supabase.from("post_mentions").insert(valid);
       }
     },
     onSuccess: () => {
@@ -254,7 +270,7 @@ export function PostComposer({
         {suggestions.length > 0 && (
           <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-background shadow-lg">
             {suggestions.map((s, i) => (
-              <li key={`${s.kind}-${s.symbol}`}>
+              <li key={s.kind === "game" ? `game-${s.id}` : `mention-${s.username}`}>
                 <button
                   type="button"
                   onMouseDown={(e) => {
@@ -273,12 +289,15 @@ export function PostComposer({
                         : "bg-primary/10 text-primary"
                     }`}
                   >
-                    {s.kind === "team" ? "$" : "@"}
-                    {s.symbol}
+                    {s.kind === "game" ? "#" : "@"}
                   </span>
-                  <span className="flex-1 truncate text-foreground">{s.name}</span>
-                  {s.league && (
+                  <span className="flex-1 truncate text-foreground">
+                    {s.kind === "game" ? s.label : s.label}
+                  </span>
+                  {s.kind === "game" ? (
                     <span className="text-xs text-muted-foreground">{s.league}</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">@{s.username}</span>
                   )}
                 </button>
               </li>

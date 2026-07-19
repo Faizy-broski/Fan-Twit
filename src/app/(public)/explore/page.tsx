@@ -6,7 +6,7 @@ import { useMemo, type ReactNode } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatRelative } from "@/lib/team-index";
+import { formatCountdown } from "@/lib/team-index";
 import type { ExploreGame } from "@/lib/highlightly.functions";
 
 type ApiErrorResponse = {
@@ -398,7 +398,7 @@ function GameStatus({
   } else if (game.status === "finished") {
     label = "FT";
   } else {
-    label = formatRelative(game.kickoff);
+    label = formatCountdown(game.kickoff);
   }
 
   return (

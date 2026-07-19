@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Calendar, MapPin } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
@@ -11,7 +11,7 @@ import { PostListSkeleton } from "@/components/PostCardSkeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import type { GameDetail } from "@/lib/highlightly.functions";
+import type { ExploreGame, GameDetail } from "@/lib/highlightly.functions";
 import { POST_SELECT } from "@/lib/posts";
 
 type GameApiError = {
@@ -77,6 +77,7 @@ export default function GamePage() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const { user } = useAuth();
+  const qc = useQueryClient();
 
   const {
     data: game,
@@ -92,6 +93,30 @@ export default function GamePage() {
     refetchIntervalInBackground: false,
   });
 
+  // The single-match lookup can transiently fail — the provider rate-limits
+  // it hard, and upcoming fixtures aren't always fully indexed yet — even
+  // though the game is real and was just visible in a list. Fall back to
+  // what we already know about it from the live-scores list cache instead
+  // of a bare "not found" in that case.
+  const listFallback = id
+    ? qc.getQueryData<ExploreGame[]>(["explore-live-games"])?.find((g) => g.id === id)
+    : undefined;
+
+  const usingFallback = !game && Boolean(listFallback);
+  const displayGame: GameDetail | null =
+    game ??
+    (listFallback
+      ? {
+          ...listFallback,
+          description: null,
+          season: null,
+          round: null,
+          homeBadge: listFallback.homeLogo,
+          awayBadge: listFallback.awayLogo,
+          stats: [],
+        }
+      : null);
+
   const {
     data: twits = [],
     isLoading: twitsLoading,
@@ -100,16 +125,16 @@ export default function GamePage() {
     queryKey: [
       "game-twits",
       id,
-      game?.home,
-      game?.away,
+      displayGame?.home,
+      displayGame?.away,
     ],
-    enabled: Boolean(game),
+    enabled: Boolean(displayGame),
     queryFn: () => {
-      if (!game) {
+      if (!displayGame) {
         return Promise.resolve([]);
       }
 
-      return fetchGameTwits(game);
+      return fetchGameTwits(displayGame);
     },
     staleTime: 30_000,
   });
@@ -154,7 +179,7 @@ export default function GamePage() {
         </section>
       )}
 
-      {gameFailed && (
+      {gameFailed && !displayGame && (
         <div className="p-8 text-center">
           <p className="text-sm font-medium text-destructive">
             Game details could not be loaded.
@@ -168,80 +193,87 @@ export default function GamePage() {
         </div>
       )}
 
-      {!gameLoading && !gameFailed && !game && (
+      {!gameLoading && !gameFailed && !displayGame && (
         <div className="p-8 text-center text-sm text-muted-foreground">
           Game not found.
         </div>
       )}
 
-      {game && (
+      {displayGame && (
         <>
+          {usingFallback && (
+            <div className="border-b border-border bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
+              Full match details aren&apos;t available yet — showing what we
+              know so far.
+            </div>
+          )}
+
           <section className="border-b border-border bg-gradient-to-b from-primary/5 to-background px-4 pb-5 pt-4">
             <div className="flex items-center justify-between gap-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               <span className="truncate">
-                {game.league || game.sport}
+                {displayGame.league || displayGame.sport}
               </span>
 
-              <GameStatus game={game} />
+              <GameStatus game={displayGame} />
             </div>
 
             <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
               <TeamColumn
-                name={game.home}
-                badge={game.homeBadge}
+                name={displayGame.home}
+                badge={displayGame.homeBadge}
               />
 
               <div className="text-center">
                 <div className="whitespace-nowrap text-3xl font-black tabular-nums">
-                  {game.homeScore ?? "–"}{" "}
+                  {displayGame.homeScore ?? "–"}{" "}
                   <span className="text-muted-foreground">
                     :
                   </span>{" "}
-                  {game.awayScore ?? "–"}
+                  {displayGame.awayScore ?? "–"}
                 </div>
 
                 <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {game.sport}
+                  {displayGame.sport}
                 </div>
               </div>
 
               <TeamColumn
-                name={game.away}
-                badge={game.awayBadge}
+                name={displayGame.away}
+                badge={displayGame.awayBadge}
                 align="right"
               />
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-              {game.venue && (
+              {displayGame.venue && (
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="size-3" />
-                  {game.venue}
+                  {displayGame.venue}
                 </span>
               )}
 
               <span className="inline-flex items-center gap-1">
                 <Calendar className="size-3" />
-                {formatGameDate(game.kickoff)}
+                {formatGameDate(displayGame.kickoff)}
               </span>
 
-              {game.season && (
+              {displayGame.season && (
                 <span>
-                  Season {game.season}
-                  {game.round ? ` · R${game.round}` : ""}
+                  Season {displayGame.season}
+                  {displayGame.round ? ` · R${displayGame.round}` : ""}
                 </span>
               )}
             </div>
           </section>
 
-          {game.stats.length > 0 && (
+          {displayGame.stats.length > 0 && (
             <section className="border-b border-border px-4 py-4">
               <h2 className="pb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Match stats
               </h2>
 
               <ul className="space-y-2">
-                {game.stats.map((stat, index) => (
+                {displayGame.stats.map((stat, index) => (
                   <li
                     key={`${stat.name}-${index}`}
                     className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 text-sm"
@@ -263,14 +295,14 @@ export default function GamePage() {
             </section>
           )}
 
-          {game.description && (
+          {displayGame.description && (
             <section className="border-b border-border px-4 py-4">
               <h2 className="pb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 About
               </h2>
 
               <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
-                {game.description}
+                {displayGame.description}
               </p>
             </section>
           )}

@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { formatRelative } from "@/lib/team-index";
-import type { ExploreGame } from "@/lib/highlightly.functions";
+import { formatCountdown } from "@/lib/team-index";
+import type { ExploreGame, GameDetail } from "@/lib/highlightly.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type ApiErrorResponse = {
   message?: string;
 };
 
-async function fetchLiveScores(): Promise<ExploreGame[]> {
+export async function fetchLiveScores(): Promise<ExploreGame[]> {
   const response = await fetch("/api/games/explore", {
     method: "GET",
     headers: {
@@ -32,6 +33,11 @@ async function fetchLiveScores(): Promise<ExploreGame[]> {
 }
 
 export function LiveScores() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const selectedGameId = pathname === "/" ? searchParams.get("game") : null;
+
   const {
     data: games = [],
     isLoading,
@@ -43,6 +49,79 @@ export function LiveScores() {
     staleTime: 30_000,
     refetchIntervalInBackground: false,
   });
+
+  const cachedSelected = selectedGameId
+    ? games.find((game) => game.id === selectedGameId)
+    : undefined;
+
+  const { data: fetchedSelected, isLoading: selectedLoading } = useQuery({
+    queryKey: ["game-lookup", selectedGameId],
+    queryFn: async () => {
+      const res = await fetch(`/api/games/${encodeURIComponent(selectedGameId!)}`);
+      if (!res.ok) return null;
+      return (await res.json()) as GameDetail;
+    },
+    enabled: Boolean(selectedGameId) && !cachedSelected,
+    staleTime: 30_000,
+  });
+
+  const selectedGame = cachedSelected ?? fetchedSelected;
+
+  function clearSelection() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("game");
+    const qs = params.toString();
+    router.replace(qs ? `/?${qs}` : "/", { scroll: false });
+  }
+
+  if (selectedGameId) {
+    return (
+      <div className="rounded-2xl border border-border bg-card">
+        <div className="flex items-center justify-between px-4 py-3">
+          <h2 className="text-sm font-bold">Selected game</h2>
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="text-xs font-semibold text-primary hover:underline"
+          >
+            Clear
+          </button>
+        </div>
+
+        {!selectedGame && selectedLoading && (
+          <div className="space-y-1.5 px-4 pb-4">
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="h-3.5 w-24" />
+          </div>
+        )}
+
+        {!selectedGame && !selectedLoading && (
+          <p className="px-4 pb-4 text-sm text-muted-foreground">
+            Game not found.
+          </p>
+        )}
+
+        {selectedGame && (
+          <Link
+            href={`/game/${encodeURIComponent(selectedGameId)}`}
+            className="block px-4 pb-4 transition-colors hover:bg-muted/40"
+          >
+            <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide">
+              <span className="max-w-[10rem] truncate text-muted-foreground">
+                {selectedGame.league || selectedGame.sport}
+              </span>
+              <GameStatus game={selectedGame} />
+            </div>
+
+            <div className="mt-1.5 space-y-1 text-sm">
+              <TeamRow name={selectedGame.home} score={selectedGame.homeScore} />
+              <TeamRow name={selectedGame.away} score={selectedGame.awayScore} />
+            </div>
+          </Link>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-border bg-card">
@@ -218,7 +297,7 @@ function GameStatus({ game }: { game: ExploreGame }) {
   } else if (game.status === "finished") {
     label = "FT";
   } else {
-    label = formatRelative(game.kickoff);
+    label = formatCountdown(game.kickoff);
   }
 
   return <span className={className}>{label}</span>;

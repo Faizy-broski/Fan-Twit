@@ -413,10 +413,12 @@ export async function getGameDetail(id: string): Promise<GameDetail | null> {
     return null;
   }
 
-  const match = await safeJson<RawMatch>(
+  const raw = await safeJson<RawMatch | RawMatch[]>(
     `/${sport.path}/matches/${encodeURIComponent(matchId)}`,
     30,
   );
+
+  const match = Array.isArray(raw) ? raw[0] : raw;
 
   if (!match) {
     const cached = detailCache.get(normalizedId);

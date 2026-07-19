@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 
@@ -9,6 +9,7 @@ import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
 import { LiveScores, LiveScoresRail } from "./LiveScores";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useRealtimePosts } from "@/hooks/useRealtimePosts";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 
@@ -60,7 +61,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="mt-4">
-            <LiveScores />
+            <Suspense fallback={<Skeleton className="h-40 rounded-2xl" />}>
+              <LiveScores />
+            </Suspense>
           </div>
         </aside>
       </div>

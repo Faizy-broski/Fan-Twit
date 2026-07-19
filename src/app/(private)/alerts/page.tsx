@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Heart, MessageCircle, Repeat2, Tag } from "lucide-react";
+import { AtSign, Heart, MessageCircle, Repeat2, Tag } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,7 +15,7 @@ import { formatRelative } from "@/lib/team-index";
 
 type Alert =
   | {
-      kind: "like" | "repost" | "comment";
+      kind: "like" | "repost" | "comment" | "mention";
       when: string;
       from: string;
       postId: string;
@@ -32,7 +32,7 @@ type Alert =
 
 type NotificationRow = {
   id: string;
-  type: "like" | "repost" | "comment";
+  type: "like" | "repost" | "comment" | "mention";
   created_at: string;
   post: { id: string; body: string } | null;
   comment: { id: string; body: string } | null;
@@ -266,6 +266,9 @@ export default function AlertsPage() {
                 {alert.kind === "comment" && (
                   <MessageCircle className="size-4 text-primary" />
                 )}
+                {alert.kind === "mention" && (
+                  <AtSign className="size-4 text-primary" />
+                )}
                 {alert.kind === "team" && (
                   <Tag className="size-4 text-primary" />
                 )}
@@ -282,6 +285,7 @@ export default function AlertsPage() {
                   {alert.kind === "like" && "liked your post"}
                   {alert.kind === "repost" && "reposted your post"}
                   {alert.kind === "comment" && "commented on your post"}
+                  {alert.kind === "mention" && "mentioned you in a post"}
                   {alert.kind === "team" && `tagged $${alert.symbol}`}
 
                   <span className="text-muted-foreground">

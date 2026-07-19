@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppShell } from "@/components/AppShell";
-import { CategoryBanner } from "@/components/CategoryBanner";
+import { GamesRail } from "@/components/GamesRail";
 import { PostCard, type PostRow } from "@/components/PostCard";
 import { PostComposer } from "@/components/PostComposer";
 import { PostListSkeleton } from "@/components/PostCardSkeleton";
@@ -16,14 +17,7 @@ const PAGE_SIZE = 10;
 // batch scrolls into view, instead of waiting until the very last post.
 const PREFETCH_OFFSET_FROM_END = 3;
 
-type HomePost = Omit<PostRow, "post_teams"> & {
-  post_teams: {
-    team_symbol: string;
-    teams: {
-      sport: string;
-    } | null;
-  }[];
-};
+type HomePost = PostRow;
 
 async function fetchHomePosts({ pageParam }: { pageParam: number }): Promise<HomePost[]> {
   const from = pageParam * PAGE_SIZE;
@@ -54,10 +48,10 @@ async function fetchHomePosts({ pageParam }: { pageParam: number }): Promise<Hom
           user_id
         ),
         post_teams (
-          team_symbol,
-          teams (
-            sport
-          )
+          team_symbol
+        ),
+        post_games (
+          game_id
         )
       `,
     )
@@ -73,9 +67,19 @@ async function fetchHomePosts({ pageParam }: { pageParam: number }): Promise<Hom
 }
 
 export default function HomePage() {
-  const { user } = useAuth();
+  return (
+    <Suspense fallback={<PostListSkeleton />}>
+      <HomeContent />
+    </Suspense>
+  );
+}
 
-  const [category, setCategory] = useState("All");
+function HomeContent() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedGameId = searchParams.get("game");
+
   const [tab, setTab] = useState<"popular" | "latest">("popular");
 
   const {
@@ -99,17 +103,14 @@ export default function HomePage() {
   const posts = useMemo(() => data?.pages.flat() ?? [], [data]);
 
   const filteredPosts = useMemo(() => {
-    const categoryPosts =
-      category === "All"
-        ? posts
-        : posts.filter((post) =>
-            post.post_teams.some(
-              (postTeam) => postTeam.teams?.sport === category,
-            ),
-          );
+    const gamePosts = selectedGameId
+      ? posts.filter((post) =>
+          (post.post_games ?? []).some((tag) => tag.game_id === selectedGameId),
+        )
+      : posts;
 
     if (tab === "popular") {
-      return [...categoryPosts].sort((a, b) => {
+      return [...gamePosts].sort((a, b) => {
         const likesDifference = b.likes.length - a.likes.length;
 
         if (likesDifference !== 0) {
@@ -123,8 +124,8 @@ export default function HomePage() {
       });
     }
 
-    return categoryPosts;
-  }, [posts, category, tab]);
+    return gamePosts;
+  }, [posts, selectedGameId, tab]);
 
   const canLoadMore = Boolean(hasNextPage) && !isFetchingNextPage;
   const sentinelIndex = Math.max(0, filteredPosts.length - PREFETCH_OFFSET_FROM_END);
@@ -149,7 +150,7 @@ export default function HomePage() {
     [canLoadMore, fetchNextPage],
   );
 
-  // A category filter can hide every post on the pages loaded so far even
+  // A game filter can hide every post on the pages loaded so far even
   // though later pages have matches — keep pulling until we find one or
   // run out of pages, instead of flashing "no posts yet".
   useEffect(() => {
@@ -160,7 +161,9 @@ export default function HomePage() {
 
   function handlePostCreated() {
     setTab("latest");
-    setCategory("All");
+    if (selectedGameId) {
+      router.replace("/", { scroll: false });
+    }
     refetch();
 
     window.scrollTo({
@@ -171,10 +174,7 @@ export default function HomePage() {
 
   return (
     <AppShell>
-      <CategoryBanner
-        active={category}
-        onChange={setCategory}
-      />
+      <GamesRail />
 
       <div className="flex border-b border-border">
         {(["popular", "latest"] as const).map((item) => (
@@ -218,7 +218,7 @@ export default function HomePage() {
 
       {!isLoading && !isError && filteredPosts.length === 0 && (
         <div className="p-8 text-center text-sm text-muted-foreground">
-          No posts yet. Be the first — tag a team with $ARS, $LAL, $KC…
+          No posts yet. Be the first — tag a game with #, mention someone with @username…
         </div>
       )}
 

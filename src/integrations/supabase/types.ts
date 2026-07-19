@@ -224,6 +224,52 @@ export type Database = {
           },
         ]
       }
+      post_games: {
+        Row: {
+          game_id: string
+          post_id: string
+        }
+        Insert: {
+          game_id: string
+          post_id: string
+        }
+        Update: {
+          game_id?: string
+          post_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_games_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_mentions: {
+        Row: {
+          mentioned_user_id: string
+          post_id: string
+        }
+        Insert: {
+          mentioned_user_id: string
+          post_id: string
+        }
+        Update: {
+          mentioned_user_id?: string
+          post_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_mentions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_players: {
         Row: {
           player_symbol: string

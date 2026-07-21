@@ -21,7 +21,11 @@ export function TeamSearchModal({
   const router = useRouter();
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 50);
+    if (open) {
+      setQ("");
+      setFetchedHits([]);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
   }, [open]);
 
   useEffect(() => {

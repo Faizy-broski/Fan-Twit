@@ -136,7 +136,7 @@ function NavItem({
                 "bg-gradient-to-b from-primary to-primary/80",
                 "text-primary-foreground",
                 // "shadow-xl shadow-primary/30",
-                "ring-[6px] ring-background",
+                // "ring-[6px] ring-background",
                 "motion-safe:animate-in motion-safe:zoom-in-90",
               ]
             : [

@@ -86,7 +86,7 @@ export function Sidebar({
             <span className="hidden xl:inline">Explore</span>
           </Link>
 
-          <button
+          {/* <button
             type="button"
             onClick={onSearch}
             className={navItem(false)}
@@ -94,7 +94,7 @@ export function Sidebar({
           >
             <Search className="size-6 shrink-0" />
             <span className="hidden xl:inline">Search</span>
-          </button>
+          </button> */}
 
           <Link
             href="/alerts"

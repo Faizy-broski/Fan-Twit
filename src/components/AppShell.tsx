@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span>sport</span>
           </Link>
           <div className="flex items-center gap-1">
-            <TeamSearch />
+            {/* <TeamSearch /> */}
             <ThemeToggle />
           </div>
         </div>
@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
 
         <aside className="sticky top-0 hidden max-h-screen w-[320px] shrink-0 overflow-y-auto px-4 py-4 xl:block scrollbar-none">
-          <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
+          {/* <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
             <Search className="size-4" />
             <button
               type="button"
@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               Search teams
             </button>
-          </div>
+          </div> */}
 
           <div className="mt-4">
             <Suspense fallback={<Skeleton className="h-40 rounded-2xl" />}>

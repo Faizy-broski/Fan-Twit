@@ -68,7 +68,7 @@ export function Sidebar({
           <span className="rounded-md bg-primary px-1.5 py-0.5 text-primary-foreground">
             Fan
             </span>
-            <span className="hidden xl:inline">sport</span> 
+            <span className="hidden xl:inline">Sport</span>
         </Link>
 
         <nav className="flex flex-col gap-1">

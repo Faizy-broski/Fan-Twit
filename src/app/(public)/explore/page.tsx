@@ -6,7 +6,8 @@ import { useMemo, type ReactNode } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCountdown } from "@/lib/team-index";
+import { supabase } from "@/integrations/supabase/client";
+import { formatCountdown, formatRelative } from "@/lib/team-index";
 import type { ExploreGame } from "@/lib/highlightly.functions";
 
 type ApiErrorResponse = {
@@ -23,6 +24,25 @@ type HotTeam = {
   gameCount: number;
   live: boolean;
 };
+
+type TrendingPlayer = {
+  symbol: string;
+  name: string;
+  sport: string;
+  avatarUrl: string | null;
+  mentionCount: number;
+};
+
+type TrendingPost = {
+  id: string;
+  body: string;
+  like_count: number;
+  reply_count: number;
+  created_at: string;
+  profiles: { username: string; display_name: string | null } | null;
+};
+
+const TRENDING_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function fetchExploreGames(): Promise<ExploreGame[]> {
   const response = await fetch("/api/games/explore", {
@@ -44,7 +64,7 @@ async function fetchExploreGames(): Promise<ExploreGame[]> {
   return response.json() as Promise<ExploreGame[]>;
 }
 
-async function fetchFifaGames(): Promise<ExploreGame[]> {
+async function fetchCompetitionGames(): Promise<ExploreGame[]> {
   const response = await fetch("/api/games/fifa", {
     method: "GET",
     headers: {
@@ -58,15 +78,89 @@ async function fetchFifaGames(): Promise<ExploreGame[]> {
       .json()
       .catch(() => null)) as ApiErrorResponse | null;
 
-    throw new Error(error?.message ?? "Failed to fetch FIFA games");
+    throw new Error(error?.message ?? "Failed to fetch competition games");
   }
 
   return response.json() as Promise<ExploreGame[]>;
 }
 
-// Hot teams / featured matchups are both derived from the games list we
-// already fetch for "Live & upcoming games" — no extra Highlightly requests.
-function deriveHotTeams(games: ExploreGame[]): HotTeam[] {
+async function fetchTrendingPlayers(): Promise<TrendingPlayer[]> {
+  const { data, error } = await supabase
+    .from("post_players")
+    .select(
+      `
+        player_symbol,
+        players ( name, sport, avatar_url ),
+        posts!inner ( created_at )
+      `,
+    )
+    .order("created_at", { foreignTable: "posts", ascending: false })
+    .limit(300);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const counts = new Map<string, TrendingPlayer>();
+
+  for (const row of (data ?? []) as unknown as {
+    player_symbol: string;
+    players: { name: string; sport: string; avatar_url: string | null } | null;
+  }[]) {
+    if (!row.players) {
+      continue;
+    }
+
+    const existing = counts.get(row.player_symbol);
+
+    if (existing) {
+      existing.mentionCount += 1;
+    } else {
+      counts.set(row.player_symbol, {
+        symbol: row.player_symbol,
+        name: row.players.name,
+        sport: row.players.sport,
+        avatarUrl: row.players.avatar_url,
+        mentionCount: 1,
+      });
+    }
+  }
+
+  return Array.from(counts.values())
+    .sort((a, b) => b.mentionCount - a.mentionCount)
+    .slice(0, 8);
+}
+
+async function fetchTrendingDiscussions(): Promise<TrendingPost[]> {
+  const since = new Date(Date.now() - TRENDING_WINDOW_MS).toISOString();
+
+  const { data, error } = await supabase
+    .from("posts")
+    .select(
+      `
+        id,
+        body,
+        like_count,
+        reply_count,
+        created_at,
+        profiles!posts_user_id_profiles_fkey ( username, display_name )
+      `,
+    )
+    .is("parent_post_id", null)
+    .gte("created_at", since)
+    .order("like_count", { ascending: false })
+    .limit(6);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as unknown as TrendingPost[];
+}
+
+// Trending teams are derived from the same games list "Live Now"/"Upcoming"
+// already fetch — no extra Highlightly requests.
+function deriveTrendingTeams(games: ExploreGame[]): HotTeam[] {
   const byTeam = new Map<string, HotTeam>();
 
   for (const game of games) {
@@ -113,17 +207,12 @@ function deriveHotTeams(games: ExploreGame[]): HotTeam[] {
     .slice(0, 12);
 }
 
-function deriveFeaturedMatchups(games: ExploreGame[]): ExploreGame[] {
-  // getExploreGames() already orders live-first, then by kickoff, so the
-  // front of the list is naturally the most "featured" set of matchups.
-  return games.slice(0, 6);
-}
-
 export default function ExplorePage() {
   const {
     data: games = [],
     isLoading: gamesLoading,
     isError: gamesFailed,
+    refetch: refetchGames,
   } = useQuery<ExploreGame[]>({
     queryKey: ["explore-live-games"],
     queryFn: fetchExploreGames,
@@ -133,19 +222,51 @@ export default function ExplorePage() {
   });
 
   const {
-    data: fifaGames = [],
-    isLoading: fifaLoading,
-    isError: fifaFailed,
+    data: competitionGames = [],
+    isLoading: competitionsLoading,
+    isError: competitionsFailed,
+    refetch: refetchCompetitions,
   } = useQuery<ExploreGame[]>({
     queryKey: ["explore-fifa-games"],
-    queryFn: fetchFifaGames,
+    queryFn: fetchCompetitionGames,
     refetchInterval: 60_000,
     staleTime: 30_000,
     refetchIntervalInBackground: false,
   });
 
-  const hotTeams = useMemo(() => deriveHotTeams(games), [games]);
-  const featuredMatchups = useMemo(() => deriveFeaturedMatchups(games), [games]);
+  const {
+    data: trendingPlayers = [],
+    isLoading: playersLoading,
+    isError: playersFailed,
+    refetch: refetchPlayers,
+  } = useQuery<TrendingPlayer[]>({
+    queryKey: ["trending-players"],
+    queryFn: fetchTrendingPlayers,
+    staleTime: 60_000,
+  });
+
+  const {
+    data: trendingPosts = [],
+    isLoading: discussionsLoading,
+    isError: discussionsFailed,
+    refetch: refetchDiscussions,
+  } = useQuery<TrendingPost[]>({
+    queryKey: ["trending-discussions"],
+    queryFn: fetchTrendingDiscussions,
+    staleTime: 60_000,
+  });
+
+  const liveGames = useMemo(
+    () => games.filter((game) => game.status === "live"),
+    [games],
+  );
+
+  const upcomingGames = useMemo(
+    () => games.filter((game) => game.status === "upcoming").slice(0, 12),
+    [games],
+  );
+
+  const trendingTeams = useMemo(() => deriveTrendingTeams(games), [games]);
 
   return (
     <AppShell>
@@ -155,142 +276,46 @@ export default function ExplorePage() {
         </h1>
       </div>
 
-      <Section title="Live & upcoming games">
-        <div className="flex gap-2 overflow-x-auto px-4 pb-3">
-          {gamesLoading &&
-            Array.from({ length: 3 }).map((_, index) => (
-              <div
-                key={index}
-                className="w-60 shrink-0 rounded-xl border border-border bg-card p-3"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <Skeleton className="h-3 w-20" />
-                  <Skeleton className="h-3 w-10" />
-                </div>
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Skeleton className="h-3.5 w-24" />
-                    <Skeleton className="h-3.5 w-5" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Skeleton className="h-3.5 w-24" />
-                    <Skeleton className="h-3.5 w-5" />
-                  </div>
-                </div>
-              </div>
-            ))}
-
-          {gamesFailed && (
-            <StatusMessage>
-              Live scores could not be loaded.
-            </StatusMessage>
-          )}
-
-          {!gamesLoading &&
-            !gamesFailed &&
-            games.map((game) => (
-              <Link
-                key={game.id}
-                href={`/game/${encodeURIComponent(game.id)}`}
-                className="w-60 shrink-0 rounded-xl border border-border bg-card p-3 transition-colors hover:bg-muted/40"
-              >
-                <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide">
-                  <span className="max-w-[10rem] truncate text-muted-foreground">
-                    {game.league || game.sport}
-                  </span>
-
-                  <GameStatus game={game} />
-                </div>
-
-                <div className="mt-2 space-y-1 text-sm">
-                  <TeamRow
-                    name={game.home}
-                    score={game.homeScore}
-                  />
-
-                  <TeamRow
-                    name={game.away}
-                    score={game.awayScore}
-                  />
-                </div>
-
-                {game.venue && (
-                  <div className="mt-2 truncate text-[10px] text-muted-foreground">
-                    {game.venue}
-                  </div>
-                )}
-              </Link>
-            ))}
-
-          {!gamesLoading &&
-            !gamesFailed &&
-            games.length === 0 && (
-              <StatusMessage>
-                No games right now.
-              </StatusMessage>
-            )}
-        </div>
+      <Section title="Live now">
+        <GameCardRow
+          games={liveGames}
+          loading={gamesLoading}
+          failed={gamesFailed}
+          onRetry={refetchGames}
+          loadFailedMessage="Live games could not be loaded."
+          emptyMessage="Nothing is live right now."
+        />
       </Section>
 
-      <Section title="FIFA & internationals">
-        {fifaLoading && <RowListSkeleton />}
-
-        {fifaFailed && (
-          <StatusMessage className="px-4">
-            FIFA matches could not be loaded.
-          </StatusMessage>
-        )}
-
-        {!fifaLoading && !fifaFailed && fifaGames.length === 0 && (
-          <StatusMessage className="px-4">
-            No FIFA matches right now.
-          </StatusMessage>
-        )}
-
-        {!fifaLoading && !fifaFailed && fifaGames.length > 0 && (
-          <ul className="divide-y divide-border">
-            {fifaGames.map((game) => (
-              <li key={game.id}>
-                <Link
-                  href={`/game/${encodeURIComponent(game.id)}`}
-                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {game.league || game.sport}
-                    </p>
-
-                    <p className="mt-0.5 truncate text-sm font-semibold">
-                      {game.home} <span className="text-muted-foreground">vs</span> {game.away}
-                    </p>
-                  </div>
-
-                  <GameStatus game={game} />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+      <Section title="Upcoming">
+        <GameCardRow
+          games={upcomingGames}
+          loading={gamesLoading}
+          failed={gamesFailed}
+          onRetry={refetchGames}
+          loadFailedMessage="Upcoming games could not be loaded."
+          emptyMessage="No upcoming games scheduled."
+        />
       </Section>
 
-      <Section title="Hot teams">
+      <Section title="Trending teams">
         {gamesLoading && <RowListSkeleton />}
 
         {gamesFailed && (
-          <StatusMessage className="px-4">
-            Teams could not be loaded.
+          <StatusMessage className="px-4" onRetry={refetchGames}>
+            Trending teams could not be loaded.
           </StatusMessage>
         )}
 
-        {!gamesLoading && !gamesFailed && hotTeams.length === 0 && (
+        {!gamesLoading && !gamesFailed && trendingTeams.length === 0 && (
           <StatusMessage className="px-4">
-            No teams playing right now.
+            No teams trending right now.
           </StatusMessage>
         )}
 
-        {!gamesLoading && !gamesFailed && hotTeams.length > 0 && (
+        {!gamesLoading && !gamesFailed && trendingTeams.length > 0 && (
           <ul className="divide-y divide-border">
-            {hotTeams.map((team) => (
+            {trendingTeams.map((team) => (
               <li key={team.key}>
                 <Link
                   href={`/game/${encodeURIComponent(team.gameId)}`}
@@ -335,24 +360,129 @@ export default function ExplorePage() {
         )}
       </Section>
 
-      <Section title="Featured matchups">
-        {gamesLoading && <RowListSkeleton />}
+      <Section title="Trending players">
+        {playersLoading && <RowListSkeleton />}
 
-        {gamesFailed && (
-          <StatusMessage className="px-4">
-            Matchups could not be loaded.
+        {playersFailed && (
+          <StatusMessage className="px-4" onRetry={refetchPlayers}>
+            Trending players could not be loaded.
           </StatusMessage>
         )}
 
-        {!gamesLoading && !gamesFailed && featuredMatchups.length === 0 && (
+        {!playersLoading && !playersFailed && trendingPlayers.length === 0 && (
           <StatusMessage className="px-4">
-            No matchups right now.
+            No players trending right now.
           </StatusMessage>
         )}
 
-        {!gamesLoading && !gamesFailed && featuredMatchups.length > 0 && (
+        {!playersLoading && !playersFailed && trendingPlayers.length > 0 && (
           <ul className="divide-y divide-border">
-            {featuredMatchups.map((game) => (
+            {trendingPlayers.map((player) => (
+              <li key={player.symbol}>
+                <Link
+                  href={`/player/${encodeURIComponent(player.symbol)}`}
+                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
+                >
+                  {player.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={player.avatarUrl}
+                      alt=""
+                      className="size-9 shrink-0 rounded-full bg-muted object-cover"
+                    />
+                  ) : (
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-black text-accent-foreground">
+                      {player.name.slice(0, 3).toUpperCase()}
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">
+                      {player.name}
+                    </p>
+
+                    <p className="text-xs text-muted-foreground">
+                      {player.sport}
+                    </p>
+                  </div>
+
+                  <span className="shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                    {player.mentionCount} {player.mentionCount === 1 ? "mention" : "mentions"}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section title="Trending discussions">
+        {discussionsLoading && <RowListSkeleton />}
+
+        {discussionsFailed && (
+          <StatusMessage className="px-4" onRetry={refetchDiscussions}>
+            Trending discussions could not be loaded.
+          </StatusMessage>
+        )}
+
+        {!discussionsLoading && !discussionsFailed && trendingPosts.length === 0 && (
+          <StatusMessage className="px-4">
+            No discussions trending right now.
+          </StatusMessage>
+        )}
+
+        {!discussionsLoading && !discussionsFailed && trendingPosts.length > 0 && (
+          <ul className="divide-y divide-border">
+            {trendingPosts.map((post) => {
+              const author = post.profiles;
+              const name = author?.display_name || author?.username || "unknown";
+
+              return (
+                <li key={post.id}>
+                  <Link
+                    href={`/post/${encodeURIComponent(post.id)}`}
+                    className="block px-4 py-3 transition-colors hover:bg-muted/40"
+                  >
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">{name}</span>
+                      <span>·</span>
+                      <span>{formatRelative(post.created_at)}</span>
+                    </div>
+
+                    <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-words text-sm text-foreground">
+                      {post.body}
+                    </p>
+
+                    <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>{post.like_count} likes</span>
+                      <span>{post.reply_count} replies</span>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Section>
+
+      <Section title="Competitions">
+        {competitionsLoading && <RowListSkeleton />}
+
+        {competitionsFailed && (
+          <StatusMessage className="px-4" onRetry={refetchCompetitions}>
+            Competitions could not be loaded.
+          </StatusMessage>
+        )}
+
+        {!competitionsLoading && !competitionsFailed && competitionGames.length === 0 && (
+          <StatusMessage className="px-4">
+            No featured competitions right now.
+          </StatusMessage>
+        )}
+
+        {!competitionsLoading && !competitionsFailed && competitionGames.length > 0 && (
+          <ul className="divide-y divide-border">
+            {competitionGames.map((game) => (
               <li key={game.id}>
                 <Link
                   href={`/game/${encodeURIComponent(game.id)}`}
@@ -376,6 +506,84 @@ export default function ExplorePage() {
         )}
       </Section>
     </AppShell>
+  );
+}
+
+function GameCardRow({
+  games,
+  loading,
+  failed,
+  onRetry,
+  loadFailedMessage,
+  emptyMessage,
+}: {
+  games: ExploreGame[];
+  loading: boolean;
+  failed: boolean;
+  onRetry: () => void;
+  loadFailedMessage: string;
+  emptyMessage: string;
+}) {
+  return (
+    <div className="flex gap-2 overflow-x-auto px-4 pb-3">
+      {loading &&
+        Array.from({ length: 3 }).map((_, index) => (
+          <div
+            key={index}
+            className="w-60 shrink-0 rounded-xl border border-border bg-card p-3"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-3 w-10" />
+            </div>
+            <div className="mt-2 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3.5 w-24" />
+                <Skeleton className="h-3.5 w-5" />
+              </div>
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3.5 w-24" />
+                <Skeleton className="h-3.5 w-5" />
+              </div>
+            </div>
+          </div>
+        ))}
+
+      {failed && <StatusMessage onRetry={onRetry}>{loadFailedMessage}</StatusMessage>}
+
+      {!loading &&
+        !failed &&
+        games.map((game) => (
+          <Link
+            key={game.id}
+            href={`/game/${encodeURIComponent(game.id)}`}
+            className="w-60 shrink-0 rounded-xl border border-border bg-card p-3 transition-colors hover:bg-muted/40"
+          >
+            <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide">
+              <span className="max-w-[10rem] truncate text-muted-foreground">
+                {game.league || game.sport}
+              </span>
+
+              <GameStatus game={game} />
+            </div>
+
+            <div className="mt-2 space-y-1 text-sm">
+              <TeamRow name={game.home} score={game.homeScore} />
+              <TeamRow name={game.away} score={game.awayScore} />
+            </div>
+
+            {game.venue && (
+              <div className="mt-2 truncate text-[10px] text-muted-foreground">
+                {game.venue}
+              </div>
+            )}
+          </Link>
+        ))}
+
+      {!loading && !failed && games.length === 0 && (
+        <StatusMessage>{emptyMessage}</StatusMessage>
+      )}
+    </div>
   );
 }
 
@@ -449,15 +657,26 @@ function TeamRow({
 function StatusMessage({
   children,
   className = "",
+  onRetry,
 }: {
   children: ReactNode;
   className?: string;
+  onRetry?: () => void;
 }) {
   return (
     <div
-      className={`py-4 text-sm text-muted-foreground ${className}`}
+      className={`flex items-center justify-between gap-3 py-4 text-sm text-muted-foreground ${className}`}
     >
-      {children}
+      <span>{children}</span>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={() => onRetry()}
+          className="shrink-0 text-sm font-semibold text-primary hover:underline"
+        >
+          Retry
+        </button>
+      )}
     </div>
   );
 }

@@ -1,18 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Providers } from "./providers";
-import { Geist, Geist_Mono } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import { createSupabaseServerComponentClient } from "@/integrations/supabase/server";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 export const metadata: Metadata = {
   title: {
     default: "FanSport — Social Discussion for Sports Fans",
@@ -86,7 +77,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">

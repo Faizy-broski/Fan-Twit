@@ -177,18 +177,23 @@ function HomeContent() {
       <GamesRail />
 
       <div className="flex border-b border-border">
-        {(["popular", "latest"] as const).map((item) => (
+        {(
+          [
+            { value: "popular", label: "Popular" },
+            { value: "latest", label: "Latest" },
+          ] as const
+        ).map((item) => (
           <button
-            key={item}
+            key={item.value}
             type="button"
-            onClick={() => setTab(item)}
-            className={`flex-1 py-3 text-sm font-semibold capitalize transition-colors ${
-              tab === item
+            onClick={() => setTab(item.value)}
+            className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+              tab === item.value
                 ? "border-b-2 border-primary text-foreground"
                 : "text-muted-foreground hover:bg-muted"
             }`}
           >
-            {item}
+            {item.label}
           </button>
         ))}
       </div>

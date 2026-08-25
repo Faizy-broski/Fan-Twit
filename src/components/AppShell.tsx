@@ -13,7 +13,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRealtimePosts } from "@/hooks/useRealtimePosts";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  hideLiveScoresSidebar = false,
+}: {
+  children: ReactNode;
+  /** Skip the "Live scores" rail/sidebar — used on pages (like Explore) that
+   * already show live/upcoming games in their own, more detailed sections,
+   * so the same data isn't duplicated under two differently-named headings. */
+  hideLiveScoresSidebar?: boolean;
+}) {
   const [searchOpen, setSearchOpen] = useState(false);
 
   useRealtimePosts();
@@ -24,9 +33,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Mobile / tablet header (hidden at lg+, replaced by the left sidebar) */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur lg:hidden">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between gap-3 px-4">
-          <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight">
+          <Link href="/" className="flex items-center gap-0 text-lg font-black tracking-tight">
             <span className="rounded-md bg-primary px-1.5 py-0.5 text-primary-foreground">Fan</span>
-            <span>sport</span>
+            <span>Sport</span>
           </Link>
           <div className="flex items-center gap-1">
             {/* <TeamSearch /> */}
@@ -35,9 +44,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <div className="mx-auto max-w-2xl lg:hidden">
-        <LiveScoresRail />
-      </div>
+      {!hideLiveScoresSidebar && (
+        <div className="mx-auto max-w-2xl lg:hidden">
+          <LiveScoresRail />
+        </div>
+      )}
 
       <div className="mx-auto flex max-w-[1265px] justify-center">
         <aside className="sticky top-0 hidden h-screen w-[68px] shrink-0 lg:block xl:w-[275px]">
@@ -60,11 +71,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             </button>
           </div> */}
 
-          <div className="mt-4">
-            <Suspense fallback={<Skeleton className="h-40 rounded-2xl" />}>
-              <LiveScores />
-            </Suspense>
-          </div>
+          {!hideLiveScoresSidebar && (
+            <div className="mt-4">
+              <Suspense fallback={<Skeleton className="h-40 rounded-2xl" />}>
+                <LiveScores />
+              </Suspense>
+            </div>
+          )}
         </aside>
       </div>
 

@@ -191,16 +191,16 @@ function normalize(match: RawMatch, sport: { path: SportPath; label: string }): 
   return {
     id: `${sport.path}:${match.id}`,
     sport: sport.label,
-    league: match.league?.name ?? "",
-    home: match.homeTeam?.name ?? "TBD",
-    away: match.awayTeam?.name ?? "TBD",
+    league: (match.league?.name ?? "").trim(),
+    home: (match.homeTeam?.name ?? "").trim() || "TBD",
+    away: (match.awayTeam?.name ?? "").trim() || "TBD",
     homeScore: parseScoreSide(match.state?.score?.current, "home"),
     awayScore: parseScoreSide(match.state?.score?.current, "away"),
     status: classify(match.state),
     progress: match.state?.description ?? null,
     kickoff: toIso(match.date),
     thumb: match.homeTeam?.logo ?? null,
-    venue: match.venue?.name ?? null,
+    venue: (match.venue?.name ?? "").trim() || null,
     homeLogo: match.homeTeam?.logo ?? null,
     awayLogo: match.awayTeam?.logo ?? null,
   };
@@ -283,7 +283,12 @@ async function fetchExploreGamesFromUpstream(): Promise<ExploreGame[]> {
         60,
       );
 
-      return (result?.data ?? []).map((match) => normalize(match, sport));
+      return (result?.data ?? [])
+        .map((match) => normalize(match, sport))
+        // Some fixtures come back with neither team assigned yet (e.g. an
+        // unresolved playoff slot) — they render as blank rows in the UI,
+        // so drop them instead of showing an empty card.
+        .filter((game) => game.home !== "TBD" || game.away !== "TBD");
     }),
   );
 

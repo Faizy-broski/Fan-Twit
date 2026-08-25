@@ -42,6 +42,7 @@ export function LiveScores() {
     data: games = [],
     isLoading,
     isError,
+    refetch,
   } = useQuery<ExploreGame[]>({
     queryKey: ["explore-live-games"],
     queryFn: fetchLiveScores,
@@ -131,7 +132,7 @@ export function LiveScores() {
           href="/explore"
           className="text-xs font-semibold text-primary hover:underline"
         >
-          See all
+          See all live scores
         </Link>
       </div>
 
@@ -159,9 +160,18 @@ export function LiveScores() {
       )}
 
       {isError && (
-        <p className="px-4 pb-4 text-sm text-muted-foreground">
-          Live scores could not be loaded.
-        </p>
+        <div className="flex items-center justify-between gap-3 px-4 pb-4">
+          <p className="text-sm text-muted-foreground">
+            Live scores could not be loaded.
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="shrink-0 text-xs font-semibold text-primary hover:underline"
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       {!isLoading && !isError && games.length === 0 && (
@@ -203,6 +213,7 @@ export function LiveScoresRail() {
     data: games = [],
     isLoading,
     isError,
+    refetch,
   } = useQuery<ExploreGame[]>({
     queryKey: ["explore-live-games"],
     queryFn: fetchLiveScores,
@@ -225,7 +236,7 @@ export function LiveScoresRail() {
           href="/explore"
           className="text-xs font-semibold text-primary hover:underline"
         >
-          See all
+          See all live scores
         </Link>
       </div>
 
@@ -251,9 +262,16 @@ export function LiveScoresRail() {
           ))}
 
         {isError && (
-          <p className="px-1 text-xs text-muted-foreground">
-            Live scores could not be loaded.
-          </p>
+          <div className="flex shrink-0 items-center gap-2 px-1 text-xs text-muted-foreground">
+            <span>Live scores could not be loaded.</span>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="font-semibold text-primary hover:underline"
+            >
+              Retry
+            </button>
+          </div>
         )}
 
         {!isLoading &&

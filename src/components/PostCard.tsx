@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Heart, Link2, MessageCircle, MoreHorizontal, Repeat2, Share, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -147,6 +148,7 @@ export function PostCard({
   onOpenComments?: (post: PostRow) => void;
 }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const liked = !!currentUserId && post.likes.some((l) => l.user_id === currentUserId);
   const likeCount = post.like_count ?? post.likes.length;
   const reposted = !!currentUserId && (post.reposts ?? []).some((r) => r.user_id === currentUserId);
@@ -365,9 +367,22 @@ export function PostCard({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <Link
-            href={`/post/${encodeURIComponent(post.id)}`}
-            className={isComment ? "mt-0.5 block" : "mt-1 block sm:mt-1.5"}
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={(e) => {
+              const target = e.target as HTMLElement;
+              if (target.closest("a, button")) {
+                return;
+              }
+              router.push(`/post/${encodeURIComponent(post.id)}`);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                router.push(`/post/${encodeURIComponent(post.id)}`);
+              }
+            }}
+            className={`cursor-pointer ${isComment ? "mt-0.5 block" : "mt-1 block sm:mt-1.5"}`}
           >
             <p
               className={`whitespace-pre-wrap break-words leading-normal text-foreground ${
@@ -386,7 +401,7 @@ export function PostCard({
                 loading="lazy"
               />
             )}
-          </Link>
+          </div>
           <div
             className={`flex items-center text-muted-foreground ${
               isComment ? "mt-1 max-w-[140px] justify-between" : "mt-1 max-w-sm justify-between sm:mt-3"

@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { BackButton } from "@/components/BackButton";
 import { PostComposer } from "@/components/PostComposer";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft } from "lucide-react";
 
 export default function ComposePage() {
   const { user, loading } = useAuth();
@@ -17,9 +16,7 @@ export default function ComposePage() {
   return (
     <AppShell>
       <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-        <Link href="/" aria-label="Back">
-          <ArrowLeft className="size-5 text-muted-foreground" />
-        </Link>
+        <BackButton fallbackHref="/" label="Back" />
         <h1 className="text-base font-bold">New post</h1>
       </div>
       <PostComposer userId={user.id} />

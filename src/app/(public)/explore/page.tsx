@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, type ReactNode } from "react";
 
@@ -20,17 +21,21 @@ type HotTeam = {
   sport: string;
   league: string;
   logo: string | null;
+  teamId: string | null;
   gameId: string;
   gameCount: number;
   live: boolean;
 };
 
 type TrendingPlayer = {
-  symbol: string;
+  key: string;
   name: string;
   sport: string;
-  avatarUrl: string | null;
-  mentionCount: number;
+  team: string;
+  teamLogo: string | null;
+  gameId: string;
+  goals: number;
+  playerId: string | null;
 };
 
 type TrendingPost = {
@@ -85,50 +90,23 @@ async function fetchCompetitionGames(): Promise<ExploreGame[]> {
 }
 
 async function fetchTrendingPlayers(): Promise<TrendingPlayer[]> {
-  const { data, error } = await supabase
-    .from("post_players")
-    .select(
-      `
-        player_symbol,
-        players ( name, sport, avatar_url ),
-        posts!inner ( created_at )
-      `,
-    )
-    .order("created_at", { foreignTable: "posts", ascending: false })
-    .limit(300);
+  const response = await fetch("/api/players/trending", {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
 
-  if (error) {
-    throw new Error(error.message);
+  if (!response.ok) {
+    const error = (await response
+      .json()
+      .catch(() => null)) as ApiErrorResponse | null;
+
+    throw new Error(error?.message ?? "Failed to fetch trending players");
   }
 
-  const counts = new Map<string, TrendingPlayer>();
-
-  for (const row of (data ?? []) as unknown as {
-    player_symbol: string;
-    players: { name: string; sport: string; avatar_url: string | null } | null;
-  }[]) {
-    if (!row.players) {
-      continue;
-    }
-
-    const existing = counts.get(row.player_symbol);
-
-    if (existing) {
-      existing.mentionCount += 1;
-    } else {
-      counts.set(row.player_symbol, {
-        symbol: row.player_symbol,
-        name: row.players.name,
-        sport: row.players.sport,
-        avatarUrl: row.players.avatar_url,
-        mentionCount: 1,
-      });
-    }
-  }
-
-  return Array.from(counts.values())
-    .sort((a, b) => b.mentionCount - a.mentionCount)
-    .slice(0, 8);
+  return response.json() as Promise<TrendingPlayer[]>;
 }
 
 async function fetchTrendingDiscussions(): Promise<TrendingPost[]> {
@@ -165,8 +143,8 @@ function deriveTrendingTeams(games: ExploreGame[]): HotTeam[] {
 
   for (const game of games) {
     const sides = [
-      { name: game.home, logo: game.homeLogo },
-      { name: game.away, logo: game.awayLogo },
+      { name: game.home, logo: game.homeLogo, teamId: game.homeTeamId },
+      { name: game.away, logo: game.awayLogo, teamId: game.awayTeamId },
     ];
 
     for (const side of sides) {
@@ -181,12 +159,14 @@ function deriveTrendingTeams(games: ExploreGame[]): HotTeam[] {
         existing.gameCount += 1;
         existing.live = existing.live || game.status === "live";
         existing.logo = existing.logo ?? side.logo;
+        existing.teamId = existing.teamId ?? side.teamId;
       } else {
         byTeam.set(key, {
           key,
           name: side.name,
           sport: game.sport,
           league: game.league,
+          teamId: side.teamId,
           logo: side.logo,
           gameId: game.id,
           gameCount: 1,
@@ -269,7 +249,7 @@ export default function ExplorePage() {
   const trendingTeams = useMemo(() => deriveTrendingTeams(games), [games]);
 
   return (
-    <AppShell>
+    <AppShell hideLiveScoresSidebar>
       <div className="px-4 pt-4">
         <h1 className="text-xl font-black tracking-tight">
           Explore
@@ -318,7 +298,11 @@ export default function ExplorePage() {
             {trendingTeams.map((team) => (
               <li key={team.key}>
                 <Link
-                  href={`/game/${encodeURIComponent(team.gameId)}`}
+                  href={
+                    team.teamId
+                      ? `/team/${encodeURIComponent(team.teamId)}`
+                      : `/game/${encodeURIComponent(team.gameId)}`
+                  }
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
                 >
                   {team.logo ? (
@@ -371,24 +355,28 @@ export default function ExplorePage() {
 
         {!playersLoading && !playersFailed && trendingPlayers.length === 0 && (
           <StatusMessage className="px-4">
-            No players trending right now.
+            No goals in live matches right now.
           </StatusMessage>
         )}
 
         {!playersLoading && !playersFailed && trendingPlayers.length > 0 && (
           <ul className="divide-y divide-border">
             {trendingPlayers.map((player) => (
-              <li key={player.symbol}>
+              <li key={player.key}>
                 <Link
-                  href={`/player/${encodeURIComponent(player.symbol)}`}
+                  href={
+                    player.playerId
+                      ? `/player/${encodeURIComponent(player.playerId)}`
+                      : `/game/${encodeURIComponent(player.gameId)}`
+                  }
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
                 >
-                  {player.avatarUrl ? (
+                  {player.teamLogo ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={player.avatarUrl}
+                      src={player.teamLogo}
                       alt=""
-                      className="size-9 shrink-0 rounded-full bg-muted object-cover"
+                      className="size-9 shrink-0 rounded-full bg-muted object-contain"
                     />
                   ) : (
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-black text-accent-foreground">
@@ -401,13 +389,13 @@ export default function ExplorePage() {
                       {player.name}
                     </p>
 
-                    <p className="text-xs text-muted-foreground">
-                      {player.sport}
+                    <p className="truncate text-xs text-muted-foreground">
+                      {player.team}
                     </p>
                   </div>
 
                   <span className="shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-                    {player.mentionCount} {player.mentionCount === 1 ? "mention" : "mentions"}
+                    {player.goals} {player.goals === 1 ? "goal" : "goals"}
                   </span>
                 </Link>
               </li>
@@ -524,6 +512,8 @@ function GameCardRow({
   loadFailedMessage: string;
   emptyMessage: string;
 }) {
+  const router = useRouter();
+
   return (
     <div className="flex gap-2 overflow-x-auto px-4 pb-3">
       {loading &&
@@ -553,32 +543,44 @@ function GameCardRow({
 
       {!loading &&
         !failed &&
-        games.map((game) => (
-          <Link
-            key={game.id}
-            href={`/game/${encodeURIComponent(game.id)}`}
-            className="w-60 shrink-0 rounded-xl border border-border bg-card p-3 transition-colors hover:bg-muted/40"
-          >
-            <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide">
-              <span className="max-w-[10rem] truncate text-muted-foreground">
-                {game.league || game.sport}
-              </span>
+        games.map((game) => {
+          const href = `/game/${encodeURIComponent(game.id)}`;
 
-              <GameStatus game={game} />
-            </div>
+          return (
+            <div
+              key={game.id}
+              role="link"
+              tabIndex={0}
+              className="w-60 shrink-0 cursor-pointer rounded-xl border border-border bg-card p-3 transition-colors hover:bg-muted/40"
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest("a")) return;
+                router.push(href);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") router.push(href);
+              }}
+            >
+              <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide">
+                <span className="max-w-[10rem] truncate text-muted-foreground">
+                  {game.league || game.sport}
+                </span>
 
-            <div className="mt-2 space-y-1 text-sm">
-              <TeamRow name={game.home} score={game.homeScore} />
-              <TeamRow name={game.away} score={game.awayScore} />
-            </div>
-
-            {game.venue && (
-              <div className="mt-2 truncate text-[10px] text-muted-foreground">
-                {game.venue}
+                <GameStatus game={game} />
               </div>
-            )}
-          </Link>
-        ))}
+
+              <div className="mt-2 space-y-1 text-sm">
+                <TeamRow name={game.home} teamId={game.homeTeamId} score={game.homeScore} />
+                <TeamRow name={game.away} teamId={game.awayTeamId} score={game.awayScore} />
+              </div>
+
+              {game.venue && (
+                <div className="mt-2 truncate text-[10px] text-muted-foreground">
+                  {game.venue}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
       {!loading && !failed && games.length === 0 && (
         <StatusMessage>{emptyMessage}</StatusMessage>
@@ -636,18 +638,29 @@ function Section({
 
 function TeamRow({
   name,
+  teamId,
   score,
 }: {
   name: string;
+  teamId: string | null;
   score: number | null;
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="truncate pr-2 font-semibold">
-        {name}
-      </span>
+    <div className="flex items-center justify-between gap-2">
+      {teamId ? (
+        <Link
+          href={`/team/${encodeURIComponent(teamId)}`}
+          className="min-w-0 truncate font-semibold hover:underline"
+        >
+          {name}
+        </Link>
+      ) : (
+        <span className="min-w-0 truncate font-semibold">
+          {name}
+        </span>
+      )}
 
-      <span className="tabular-nums text-muted-foreground">
+      <span className="shrink-0 tabular-nums text-muted-foreground">
         {score ?? "—"}
       </span>
     </div>

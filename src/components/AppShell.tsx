@@ -2,7 +2,6 @@
 
 import { Suspense, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
 
 import { TeamSearch, TeamSearchModal } from "./TeamSearch";
 import { BottomNav } from "./BottomNav";
@@ -20,7 +19,9 @@ export function AppShell({
   children: ReactNode;
   /** Skip the "Live scores" rail/sidebar — used on pages (like Explore) that
    * already show live/upcoming games in their own, more detailed sections,
-   * so the same data isn't duplicated under two differently-named headings. */
+   * so the same data isn't duplicated under two differently-named headings.
+   * The desktop sidebar column stays, filled with team search instead, so
+   * it doesn't collapse into empty space. */
   hideLiveScoresSidebar?: boolean;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -38,7 +39,7 @@ export function AppShell({
             <span>Sport</span>
           </Link>
           <div className="flex items-center gap-1">
-            {/* <TeamSearch /> */}
+            <TeamSearch />
             <ThemeToggle />
           </div>
         </div>
@@ -60,16 +61,7 @@ export function AppShell({
         </main>
 
         <aside className="sticky top-0 hidden max-h-screen w-[320px] shrink-0 overflow-y-auto px-4 py-4 xl:block scrollbar-none">
-          {/* <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
-            <Search className="size-4" />
-            <button
-              type="button"
-              onClick={() => setSearchOpen(true)}
-              className="flex-1 text-left"
-            >
-              Search teams
-            </button>
-          </div> */}
+          <TeamSearch variant="bar" />
 
           {!hideLiveScoresSidebar && (
             <div className="mt-4">

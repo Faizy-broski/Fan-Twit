@@ -32,6 +32,39 @@ export async function fetchLiveScores(): Promise<ExploreGame[]> {
   return response.json() as Promise<ExploreGame[]>;
 }
 
+// A team name inside a game card is itself a link (to /team/...), so the
+// card can't be a real <Link> around everything — nested <a> is invalid
+// HTML. This makes the whole card clickable to the game except for clicks
+// that land on a nested link, which navigate there instead.
+function GameCard({
+  href,
+  className,
+  children,
+}: {
+  href: string;
+  className: string;
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+
+  return (
+    <div
+      role="link"
+      tabIndex={0}
+      className={className}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("a")) return;
+        router.push(href);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") router.push(href);
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function LiveScores() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -103,9 +136,9 @@ export function LiveScores() {
         )}
 
         {selectedGame && (
-          <Link
+          <GameCard
             href={`/game/${encodeURIComponent(selectedGameId)}`}
-            className="block px-4 pb-4 transition-colors hover:bg-muted/40"
+            className="block cursor-pointer px-4 pb-4 transition-colors hover:bg-muted/40"
           >
             <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide">
               <span className="max-w-[10rem] truncate text-muted-foreground">
@@ -115,10 +148,10 @@ export function LiveScores() {
             </div>
 
             <div className="mt-1.5 space-y-1 text-sm">
-              <TeamRow name={selectedGame.home} score={selectedGame.homeScore} />
-              <TeamRow name={selectedGame.away} score={selectedGame.awayScore} />
+              <TeamRow name={selectedGame.home} teamId={selectedGame.homeTeamId} score={selectedGame.homeScore} />
+              <TeamRow name={selectedGame.away} teamId={selectedGame.awayTeamId} score={selectedGame.awayScore} />
             </div>
-          </Link>
+          </GameCard>
         )}
       </div>
     );
@@ -184,9 +217,9 @@ export function LiveScores() {
         <ul className="divide-y divide-border">
           {games.slice(0, 8).map((game) => (
             <li key={game.id}>
-              <Link
+              <GameCard
                 href={`/game/${encodeURIComponent(game.id)}`}
-                className="block px-4 py-2.5 transition-colors hover:bg-muted/40"
+                className="block cursor-pointer px-4 py-2.5 transition-colors hover:bg-muted/40"
               >
                 <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide">
                   <span className="max-w-[10rem] truncate text-muted-foreground">
@@ -196,10 +229,10 @@ export function LiveScores() {
                 </div>
 
                 <div className="mt-1.5 space-y-1 text-sm">
-                  <TeamRow name={game.home} score={game.homeScore} />
-                  <TeamRow name={game.away} score={game.awayScore} />
+                  <TeamRow name={game.home} teamId={game.homeTeamId} score={game.homeScore} />
+                  <TeamRow name={game.away} teamId={game.awayTeamId} score={game.awayScore} />
                 </div>
-              </Link>
+              </GameCard>
             </li>
           ))}
         </ul>
@@ -277,10 +310,10 @@ export function LiveScoresRail() {
         {!isLoading &&
           !isError &&
           games.slice(0, 10).map((game) => (
-            <Link
+            <GameCard
               key={game.id}
               href={`/game/${encodeURIComponent(game.id)}`}
-              className="w-36 shrink-0 rounded-xl border border-border bg-card px-3 py-2 transition-colors hover:bg-muted/40"
+              className="w-36 shrink-0 cursor-pointer rounded-xl border border-border bg-card px-3 py-2 transition-colors hover:bg-muted/40"
             >
               <div className="flex items-center justify-between gap-1 text-[9px] font-semibold uppercase tracking-wide">
                 <span className="max-w-[5.5rem] truncate text-muted-foreground">
@@ -290,10 +323,10 @@ export function LiveScoresRail() {
               </div>
 
               <div className="mt-1.5 space-y-1 text-xs">
-                <TeamRow name={game.home} score={game.homeScore} />
-                <TeamRow name={game.away} score={game.awayScore} />
+                <TeamRow name={game.home} teamId={game.homeTeamId} score={game.homeScore} />
+                <TeamRow name={game.away} teamId={game.awayTeamId} score={game.awayScore} />
               </div>
-            </Link>
+            </GameCard>
           ))}
       </div>
     </div>
@@ -321,11 +354,28 @@ function GameStatus({ game }: { game: ExploreGame }) {
   return <span className={className}>{label}</span>;
 }
 
-function TeamRow({ name, score }: { name: string; score: number | null }) {
+function TeamRow({
+  name,
+  teamId,
+  score,
+}: {
+  name: string;
+  teamId: string | null;
+  score: number | null;
+}) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="truncate pr-2 font-semibold">{name}</span>
-      <span className="tabular-nums text-muted-foreground">{score ?? "—"}</span>
+    <div className="flex items-center justify-between gap-2">
+      {teamId ? (
+        <Link
+          href={`/team/${encodeURIComponent(teamId)}`}
+          className="min-w-0 truncate font-semibold hover:underline"
+        >
+          {name}
+        </Link>
+      ) : (
+        <span className="min-w-0 truncate font-semibold">{name}</span>
+      )}
+      <span className="shrink-0 tabular-nums text-muted-foreground">{score ?? "—"}</span>
     </div>
   );
 }

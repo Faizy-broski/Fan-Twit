@@ -40,7 +40,18 @@ export function PostComposer({
       : replyToUsername
         ? `@${replyToUsername} `
         : "";
-  const [body, setBody] = useState(initial);
+  // Keyed per composer context (root vs. a specific reply thread) so an
+  // unfinished reply draft doesn't bleed into the root composer or another
+  // thread's reply box, and survives a refresh/reconnect.
+  const draftKey = `postComposer:draft:${parentPostId ?? "root"}`;
+  const [body, setBody] = useState(() => {
+    if (typeof window === "undefined") return initial;
+    try {
+      return window.localStorage.getItem(draftKey) || initial;
+    } catch {
+      return initial;
+    }
+  });
   const qc = useQueryClient();
   const max = 500;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -60,6 +71,18 @@ export function PostComposer({
     return { kind: m[1] === "#" ? ("game" as const) : ("mention" as const), query: m[2], start: caret - m[2].length - 1 };
   })();
   const suggestions = tokenMatch && !dismissed ? fetchedSuggestions : [];
+
+  useEffect(() => {
+    try {
+      if (body.trim() && body !== initial) {
+        window.localStorage.setItem(draftKey, body);
+      } else {
+        window.localStorage.removeItem(draftKey);
+      }
+    } catch {
+      // Storage unavailable (private browsing, quota) — draft just won't persist.
+    }
+  }, [body, draftKey, initial]);
 
   useEffect(() => {
     let ignore = false;
@@ -187,6 +210,11 @@ export function PostComposer({
     },
     onSuccess: () => {
       setBody(initial);
+      try {
+        window.localStorage.removeItem(draftKey);
+      } catch {
+        // Ignore — nothing to clean up if storage isn't available.
+      }
       setMediaFile(null);
       setMediaPreview(null);
       qc.invalidateQueries({

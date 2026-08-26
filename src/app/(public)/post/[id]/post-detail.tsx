@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
+import { BackButton } from "@/components/BackButton";
 import { PostCard, type PostRow } from "@/components/PostCard";
 import { PostCardSkeleton, PostListSkeleton } from "@/components/PostCardSkeleton";
 import { PostComposer } from "@/components/PostComposer";
@@ -84,13 +84,7 @@ export function PostDetail({
   return (
     <AppShell>
       <header className="flex items-center gap-3 border-b border-border px-4 py-3">
-        <Link
-          href="/"
-          aria-label="Back to feed"
-          className="rounded-md p-1 transition-colors hover:bg-muted"
-        >
-          <ArrowLeft className="size-5 text-muted-foreground" />
-        </Link>
+        <BackButton fallbackHref="/" label="Back to feed" />
 
         <h1 className="text-base font-bold">Post</h1>
       </header>

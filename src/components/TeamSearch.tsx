@@ -1,9 +1,16 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/integrations/supabase/client";
 
-type TeamHit = { symbol: string; name: string; league: string; sport: string };
+type TeamHit = {
+  id: string;
+  sport: string;
+  name: string;
+  logo: string | null;
+  type: string | null;
+};
 
 export function TeamSearchModal({
   open,
@@ -13,41 +20,61 @@ export function TeamSearchModal({
   onClose: () => void;
 }) {
   const [q, setQ] = useState("");
-  const [fetchedHits, setFetchedHits] = useState<TeamHit[]>([]);
+  const [hits, setHits] = useState<TeamHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const term = q.trim();
-  const hits = term ? fetchedHits : [];
 
   const router = useRouter();
 
   useEffect(() => {
     if (open) {
       setQ("");
-      setFetchedHits([]);
+      setHits([]);
+      setFailed(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
 
   useEffect(() => {
-    if (!term) return;
+    if (!term) {
+      setHits([]);
+      setFailed(false);
+      return;
+    }
+
     let ignore = false;
-    (async () => {
-      const { data } = await supabase
-        .from("teams")
-        .select("symbol,name,league,sport")
-        .or(`name.ilike.%${term}%,symbol.ilike.%${term}%`)
-        .limit(8);
-      if (!ignore) setFetchedHits(data ?? []);
-    })();
+    setLoading(true);
+    setFailed(false);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/teams/search?q=${encodeURIComponent(term)}`);
+        if (ignore) return;
+        if (!res.ok) throw new Error("search failed");
+        const data = (await res.json()) as TeamHit[];
+        if (!ignore) setHits(data);
+      } catch {
+        if (!ignore) {
+          setHits([]);
+          setFailed(true);
+        }
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    }, 300);
+
     return () => {
       ignore = true;
+      clearTimeout(timer);
     };
   }, [term]);
 
-  const go = (symbol: string) => {
+  const go = (id: string) => {
     setQ("");
     onClose();
-    router.push(`/team/${encodeURIComponent(symbol)}`);
+    router.push(`/team/${encodeURIComponent(id)}`);
   };
 
   if (!open) {
@@ -69,7 +96,7 @@ export function TeamSearchModal({
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search teams (e.g. Arsenal, Lakers, $KC)"
+            placeholder="Search teams (e.g. Arsenal, Lakers)"
             className="flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
           />
           <button onClick={onClose} aria-label="Close">
@@ -77,43 +104,69 @@ export function TeamSearchModal({
           </button>
         </div>
         <ul className="max-h-80 overflow-y-auto py-1">
-          {hits.length === 0 && q && (
+          {term && loading && (
+            <li className="px-4 py-3 text-sm text-muted-foreground">Searching…</li>
+          )}
+          {term && !loading && failed && (
+            <li className="px-4 py-3 text-sm text-muted-foreground">
+              Teams could not be loaded.
+            </li>
+          )}
+          {term && !loading && !failed && hits.length === 0 && (
             <li className="px-4 py-3 text-sm text-muted-foreground">No teams found.</li>
           )}
-          {hits.map((t) => (
-            <li key={t.symbol}>
-              <button
-                onClick={() => go(t.symbol)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-                    ${t.symbol}
-                  </span>
-                  <span className="text-sm text-foreground">{t.name}</span>
-                </div>
-                <span className="text-xs text-muted-foreground">{t.league}</span>
-              </button>
-            </li>
-          ))}
+          {!loading &&
+            !failed &&
+            hits.map((t) => (
+              <li key={t.id}>
+                <button
+                  onClick={() => go(t.id)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    {t.logo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={t.logo}
+                        alt=""
+                        className="size-6 shrink-0 rounded-full bg-muted object-contain"
+                      />
+                    ) : null}
+                    <span className="truncate text-sm text-foreground">{t.name}</span>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">{t.sport}</span>
+                </button>
+              </li>
+            ))}
         </ul>
       </div>
     </div>
   );
 }
 
-export function TeamSearch() {
+export function TeamSearch({ variant = "icon" }: { variant?: "icon" | "bar" }) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-        aria-label="Search teams"
-      >
-        <Search className="size-5" />
-      </button>
+      {variant === "bar" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-2 rounded-full border border-border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted/70"
+        >
+          <Search className="size-4 shrink-0" />
+          <span className="flex-1 text-left">Search teams</span>
+        </button>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          aria-label="Search teams"
+        >
+          <Search className="size-5" />
+        </button>
+      )}
       <TeamSearchModal open={open} onClose={() => setOpen(false)} />
     </>
   );

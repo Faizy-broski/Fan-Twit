@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Calendar, MapPin } from "lucide-react";
+import { Calendar, MapPin } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
+import { BackButton } from "@/components/BackButton";
 import { PostCard, type PostRow } from "@/components/PostCard";
 import { PostListSkeleton } from "@/components/PostCardSkeleton";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,7 +75,13 @@ async function fetchGameTwits(game: GameDetail): Promise<PostRow[]> {
 
 export default function GamePage() {
   const params = useParams<{ id: string }>();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
+  // useParams() returns the raw (still URL-encoded) segment rather than a
+  // decoded one — game ids contain a literal ":" (e.g. "football:123"),
+  // encoded as "%3A" in the URL, so it has to be decoded here before
+  // fetchGameDetail re-encodes it, or it doubles up into "%253A" and every
+  // lookup 404s.
+  const id = rawId ? decodeURIComponent(rawId) : rawId;
 
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -142,13 +149,7 @@ export default function GamePage() {
   return (
     <AppShell>
       <header className="flex items-center gap-3 border-b border-border px-4 py-3">
-        <Link
-          href="/explore"
-          aria-label="Back to explore"
-          className="rounded-md p-1 transition-colors hover:bg-muted"
-        >
-          <ArrowLeft className="size-5 text-muted-foreground" />
-        </Link>
+        <BackButton fallbackHref="/explore" label="Back to explore" />
 
         <h1 className="text-base font-bold">Game</h1>
       </header>
@@ -221,6 +222,7 @@ export default function GamePage() {
               <TeamColumn
                 name={displayGame.home}
                 badge={displayGame.homeBadge}
+                teamId={displayGame.homeTeamId}
               />
 
               <div className="text-center">
@@ -240,6 +242,7 @@ export default function GamePage() {
               <TeamColumn
                 name={displayGame.away}
                 badge={displayGame.awayBadge}
+                teamId={displayGame.awayTeamId}
                 align="right"
               />
             </div>
@@ -387,20 +390,16 @@ function GameStatus({
 function TeamColumn({
   name,
   badge,
+  teamId,
   align = "left",
 }: {
   name: string;
   badge: string | null;
+  teamId: string | null;
   align?: "left" | "right";
 }) {
-  return (
-    <div
-      className={`flex min-w-0 items-center gap-2 ${
-        align === "right"
-          ? "flex-row-reverse text-right"
-          : ""
-      }`}
-    >
+  const content = (
+    <>
       {badge ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -417,8 +416,22 @@ function TeamColumn({
       <span className="min-w-0 break-words text-sm font-bold leading-tight">
         {name}
       </span>
-    </div>
+    </>
   );
+
+  const className = `flex min-w-0 items-center gap-2 ${
+    align === "right" ? "flex-row-reverse text-right" : ""
+  }`;
+
+  if (teamId) {
+    return (
+      <Link href={`/team/${encodeURIComponent(teamId)}`} className={`${className} hover:underline`}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
 }
 
 function formatGameDate(value: string): string {

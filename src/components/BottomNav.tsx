@@ -123,51 +123,16 @@ function NavItem({
       href={href}
       aria-label={label}
       aria-current={active ? "page" : undefined}
-      className="relative flex h-14 min-w-0 flex-1 items-center justify-center"
+      className={cn(
+        "flex h-14 min-w-0 flex-1 items-center justify-center transition-colors",
+        active ? "text-primary" : "text-foreground/65 hover:text-foreground",
+      )}
     >
-      <span
-        className={cn(
-          "flex items-center justify-center transition-all duration-300 ease-out",
-          active
-            ? [
-                // "absolute -top-5 size-12 rounded-full",
-                "absolute size-10 rounded-full",
-
-                "bg-gradient-to-b from-primary to-primary/80",
-                "text-primary-foreground",
-                // "shadow-xl shadow-primary/30",
-                // "ring-[6px] ring-background",
-                "motion-safe:animate-in motion-safe:zoom-in-90",
-              ]
-            : [
-                "flex-col gap-1 text-foreground/65",
-                "hover:text-foreground",
-              ],
+      <span className="relative shrink-0">
+        <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} />
+        {showBadge && (
+          <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-destructive ring-2 ring-background" />
         )}
-      >
-        <span className="relative shrink-0">
-          <Icon
-            className={cn(
-              "transition-all duration-300",
-              active ? "size-6" : "size-5",
-            )}
-            strokeWidth={active ? 2 : 1.5}
-          />
-          {showBadge && (
-            <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-destructive ring-2 ring-background" />
-          )}
-        </span>
-
-        {/* <span
-          className={cn(
-            "text-[11px] font-medium transition-all duration-200",
-            active
-              ? "pointer-events-none absolute opacity-0"
-              : "translate-y-0 opacity-100",
-          )}
-        >
-          {label}
-        </span> */}
       </span>
     </Link>
   );
@@ -210,8 +175,8 @@ export function BottomNav({
       aria-label="Mobile navigation"
       className="fixed inset-x-0 bottom-0 z-40 lg:hidden"
     >
-      <div className="mx-auto w-full max-w-2xl px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <div className="relative mt-8 flex h-14 items-center rounded-[30px] border border-border/70 bg-card/95 px-1 shadow-xl shadow-black/10 backdrop-blur-xl">
+      <div className="w-full border-t border-border bg-card pb-[env(safe-area-inset-bottom)]">
+        <div className="mx-auto flex h-14 w-full max-w-2xl items-center">
           <NavItem
             href="/"
             label="Home"

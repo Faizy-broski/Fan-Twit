@@ -12,35 +12,17 @@ type TeamHit = {
   type: string | null;
 };
 
-export function TeamSearchModal({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
-  const [q, setQ] = useState("");
+/** Debounced team lookup against /api/teams/search. */
+function useTeamSearch(term: string) {
   const [hits, setHits] = useState<TeamHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const term = q.trim();
-
-  const router = useRouter();
-
-  useEffect(() => {
-    if (open) {
-      setQ("");
-      setHits([]);
-      setFailed(false);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [open]);
 
   useEffect(() => {
     if (!term) {
       setHits([]);
       setFailed(false);
+      setLoading(false);
       return;
     }
 
@@ -70,6 +52,83 @@ export function TeamSearchModal({
       clearTimeout(timer);
     };
   }, [term]);
+
+  return { hits, loading, failed };
+}
+
+function TeamResultList({
+  term,
+  hits,
+  loading,
+  failed,
+  onPick,
+}: {
+  term: string;
+  hits: TeamHit[];
+  loading: boolean;
+  failed: boolean;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <ul className="max-h-80 overflow-y-auto py-1">
+      {term && loading && (
+        <li className="px-4 py-3 text-sm text-muted-foreground">Searching…</li>
+      )}
+      {term && !loading && failed && (
+        <li className="px-4 py-3 text-sm text-muted-foreground">
+          Teams could not be loaded.
+        </li>
+      )}
+      {term && !loading && !failed && hits.length === 0 && (
+        <li className="px-4 py-3 text-sm text-muted-foreground">No teams found.</li>
+      )}
+      {!loading &&
+        !failed &&
+        hits.map((t) => (
+          <li key={t.id}>
+            <button
+              onClick={() => onPick(t.id)}
+              className="flex w-full items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                {t.logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={t.logo}
+                    alt=""
+                    className="size-6 shrink-0 rounded-full bg-muted object-contain"
+                  />
+                ) : null}
+                <span className="truncate text-sm text-foreground">{t.name}</span>
+              </div>
+              <span className="shrink-0 text-xs text-muted-foreground">{t.sport}</span>
+            </button>
+          </li>
+        ))}
+    </ul>
+  );
+}
+
+export function TeamSearchModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const term = q.trim();
+  const { hits, loading, failed } = useTeamSearch(term);
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (open) {
+      setQ("");
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open]);
 
   const go = (id: string) => {
     setQ("");
@@ -103,43 +162,75 @@ export function TeamSearchModal({
             <X className="size-4 text-muted-foreground" />
           </button>
         </div>
-        <ul className="max-h-80 overflow-y-auto py-1">
-          {term && loading && (
-            <li className="px-4 py-3 text-sm text-muted-foreground">Searching…</li>
-          )}
-          {term && !loading && failed && (
-            <li className="px-4 py-3 text-sm text-muted-foreground">
-              Teams could not be loaded.
-            </li>
-          )}
-          {term && !loading && !failed && hits.length === 0 && (
-            <li className="px-4 py-3 text-sm text-muted-foreground">No teams found.</li>
-          )}
-          {!loading &&
-            !failed &&
-            hits.map((t) => (
-              <li key={t.id}>
-                <button
-                  onClick={() => go(t.id)}
-                  className="flex w-full items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    {t.logo ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={t.logo}
-                        alt=""
-                        className="size-6 shrink-0 rounded-full bg-muted object-contain"
-                      />
-                    ) : null}
-                    <span className="truncate text-sm text-foreground">{t.name}</span>
-                  </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">{t.sport}</span>
-                </button>
-              </li>
-            ))}
-        </ul>
+        <TeamResultList
+          term={term}
+          hits={hits}
+          loading={loading}
+          failed={failed}
+          onPick={go}
+        />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Inline search field that expands within the mobile header: the search icon
+ * turns into this full-width input, with a close button that restores the
+ * previous (branded) header. Results drop down beneath the header — there is
+ * no full-screen overlay.
+ */
+export function TeamSearchInline({ onClose }: { onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const term = q.trim();
+  const { hits, loading, failed } = useTeamSearch(term);
+  const router = useRouter();
+
+  useEffect(() => {
+    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, []);
+
+  const go = (id: string) => {
+    setQ("");
+    onClose();
+    router.push(`/team/${encodeURIComponent(id)}`);
+  };
+
+  return (
+    <div className="relative flex flex-1 items-center gap-2">
+      <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-muted/40 px-4">
+        <Search className="size-4 shrink-0 text-muted-foreground" />
+        <input
+          ref={inputRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === "Escape" && onClose()}
+          placeholder="Search teams (e.g. Arsenal, Lakers)"
+          className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close search"
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+      >
+        <X className="size-5" />
+      </button>
+
+      {term && (
+        <div className="absolute inset-x-0 top-full z-50 mt-2 rounded-xl border border-border bg-background shadow-2xl">
+          <TeamResultList
+            term={term}
+            hits={hits}
+            loading={loading}
+            failed={failed}
+            onPick={go}
+          />
+        </div>
+      )}
     </div>
   );
 }
